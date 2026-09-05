@@ -15,6 +15,7 @@ import { useEditorStore } from "@/store/editorStore";
 export function WallEditor() {
   const [exportOpen, setExportOpen] = useState(false);
   const importRef = useRef<HTMLInputElement | null>(null);
+  const editorRef = useRef<HTMLElement | null>(null);
   const {
     importProject,
     saveLocal,
@@ -54,9 +55,11 @@ export function WallEditor() {
         clearSelection();
       } else if (event.key === "Delete" || event.key === "Backspace") {
         updateSelectedModules({ enabled: false, status: "unused" });
-      } else if (event.key === "*" || event.key === "+") {
+      } else if (event.key === "*" || event.key === "+" || (modifier && event.key === "=")) {
+        event.preventDefault();
         setView({ zoom: Math.min(2.5, view.zoom * 1.15) });
       } else if (event.key === "-") {
+        event.preventDefault();
         setView({ zoom: Math.max(0.015, view.zoom * 0.85) });
       } else if (event.key.toLowerCase() === "f") {
         window.dispatchEvent(new Event("led-wall-fit"));
@@ -67,6 +70,20 @@ export function WallEditor() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [clearSelection, redo, saveLocal, selectAll, setView, undo, updateSelectedModules, view.zoom]);
 
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    function preventBrowserZoom(event: WheelEvent) {
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault();
+      }
+    }
+
+    editor.addEventListener("wheel", preventBrowserZoom, { passive: false, capture: true });
+    return () => editor.removeEventListener("wheel", preventBrowserZoom, { capture: true });
+  }, []);
+
   async function handleImport(file: File) {
     try {
       importProject(await file.text());
@@ -76,7 +93,7 @@ export function WallEditor() {
   }
 
   return (
-    <main className="technical-grid flex h-screen min-h-0 flex-col gap-3 p-3 text-slate-100">
+    <main ref={editorRef} className="technical-grid flex h-screen min-h-0 flex-col gap-3 p-3 text-slate-100">
       <CanvasToolbar onOpenExport={() => setExportOpen(true)} onImport={() => importRef.current?.click()} />
       <div className="grid min-h-0 flex-1 grid-cols-[320px_minmax(0,1fr)_340px] gap-3">
         <aside className="panel min-h-0 overflow-y-auto rounded-xl p-4">

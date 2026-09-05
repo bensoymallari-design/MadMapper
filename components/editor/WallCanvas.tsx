@@ -25,7 +25,9 @@ export function WallCanvas() {
     setView,
     selectModule,
     selectModules,
-    clearSelection
+    clearSelection,
+    addCabinetToActiveRoute,
+    activeRouteId
   } = useEditorStore();
 
   const metrics = useMemo(
@@ -130,6 +132,10 @@ export function WallCanvas() {
       drawDataPaths(ctx, mapped, renderModules, view.zoom);
     }
 
+    if (project.routing.enabled) {
+      drawReceivingCardRoutes(ctx, project.routing.routes, cabinets, activeRouteId, project.routing.showLabels, view.zoom);
+    }
+
     if (selectionRect) {
       ctx.strokeStyle = "#38bdf8";
       ctx.fillStyle = "rgba(56, 189, 248, 0.12)";
@@ -174,13 +180,28 @@ export function WallCanvas() {
     return project.modules.find((module) => module.row === row && module.column === column);
   }
 
+  function hitTestCabinet(world: Point) {
+    return cabinets.find(
+      (cabinet) =>
+        world.x >= cabinet.x &&
+        world.y >= cabinet.y &&
+        world.x <= cabinet.x + cabinet.width &&
+        world.y <= cabinet.y + cabinet.height
+    );
+  }
+
   function handlePointerDown(event: React.PointerEvent<HTMLCanvasElement>) {
     event.currentTarget.setPointerCapture(event.pointerId);
     const point = getPoint(event);
     dragStart.current = point;
     lastPointer.current = point;
     hasDragged.current = false;
-    if (activeTool === "select") {
+    if (activeTool === "mapping" && project.routing.enabled && activeRouteId) {
+      const cabinet = hitTestCabinet(world);
+      if (cabinet) {
+        addCabinetToActiveRoute(cabinet.id);
+      }
+    } else if (activeTool === "select") {
       setSelectionRect(null);
     }
   }
@@ -330,6 +351,105 @@ function drawDataPaths(
       drawArrowHead(ctx, start, end, zoom);
     });
   });
+}
+
+function drawReceivingCardRoutes(
+  ctx: CanvasRenderingContext2D,
+  routes: {
+    id: string;
+    name: string;
+    color: string;
+    cabinetIds: string[];
+    startLabel: string;
+    endLabel: string;
+    backupLabel: string;
+  }[],
+  cabinets: { id: string; index: number; x: number; y: number; width: number; height: number }[],
+  activeRouteId: string | null,
+  showLabels: boolean,
+  zoom: number
+) {
+  const byId = new Map(cabinets.map((cabinet) => [cabinet.id, cabinet]));
+
+  routes.forEach((route) => {
+    const routeCabinets = route.cabinetIds
+      .map((id) => byId.get(id))
+      .filter((cabinet): cabinet is { id: string; index: number; x: number; y: number; width: number; height: number } =>
+        Boolean(cabinet)
+      );
+    if (routeCabinets.length === 0) return;
+
+    ctx.save();
+    ctx.strokeStyle = route.color;
+    ctx.fillStyle = route.color;
+    ctx.lineWidth = Math.max(8 / zoom, 8);
+    ctx.setLineDash(route.id === activeRouteId ? [Math.max(26 / zoom, 26), Math.max(12 / zoom, 12)] : []);
+
+    routeCabinets.slice(0, -1).forEach((cabinet, index) => {
+      const next = routeCabinets[index + 1];
+      if (!cabinet || !next) return;
+      const start = cabinetCenter(cabinet);
+      const end = cabinetCenter(next);
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+      drawArrowHead(ctx, start, end, zoom);
+    });
+
+    routeCabinets.forEach((cabinet, index) => {
+      if (!cabinet) return;
+      const center = cabinetCenter(cabinet);
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, Math.max(34 / zoom, 34), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#020617";
+      ctx.font = `${Math.max(34 / zoom, 34)}px ui-monospace, monospace`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(String(index + 1), center.x, center.y);
+      ctx.fillStyle = route.color;
+    });
+
+    if (showLabels) {
+      const first = routeCabinets[0];
+      const last = routeCabinets.at(-1);
+      if (first) {
+        const center = cabinetCenter(first);
+        drawRouteLabel(ctx, route.startLabel, center.x, center.y - Math.max(70 / zoom, 70), route.color, zoom);
+      }
+      if (last && last !== first) {
+        const center = cabinetCenter(last);
+        drawRouteLabel(ctx, `${route.endLabel} / ${route.backupLabel}`, center.x, center.y + Math.max(95 / zoom, 95), route.color, zoom);
+      }
+    }
+
+    ctx.restore();
+  });
+}
+
+function cabinetCenter(cabinet: { x: number; y: number; width: number; height: number }) {
+  return {
+    x: cabinet.x + cabinet.width / 2,
+    y: cabinet.y + cabinet.height / 2
+  };
+}
+
+function drawRouteLabel(ctx: CanvasRenderingContext2D, label: string, x: number, y: number, color: string, zoom: number) {
+  const padding = Math.max(16 / zoom, 16);
+  const height = Math.max(52 / zoom, 52);
+  ctx.font = `${Math.max(38 / zoom, 38)}px ui-monospace, monospace`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const width = ctx.measureText(label).width + padding * 2;
+  ctx.fillStyle = "rgba(2, 6, 23, 0.9)";
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(3 / zoom, 3);
+  ctx.fillRect(x - width / 2, y - height / 2, width, height);
+  ctx.strokeRect(x - width / 2, y - height / 2, width, height);
+  ctx.fillStyle = "#e0f2fe";
+  ctx.fillText(label, x, y);
+  ctx.fillStyle = color;
 }
 
 function drawArrowHead(ctx: CanvasRenderingContext2D, start: Point, end: Point, zoom: number) {

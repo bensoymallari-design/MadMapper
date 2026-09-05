@@ -66,6 +66,23 @@ export interface MappingSettings {
   startingCorner: StartingCorner;
 }
 
+export interface ReceivingCardRoute {
+  id: string;
+  name: string;
+  port: number;
+  color: string;
+  cabinetIds: string[];
+  startLabel: string;
+  endLabel: string;
+  backupLabel: string;
+}
+
+export interface RoutingSettings {
+  enabled: boolean;
+  showLabels: boolean;
+  routes: ReceivingCardRoute[];
+}
+
 export interface DisplaySettings {
   showGrid: boolean;
   showNumbers: boolean;
@@ -128,6 +145,7 @@ export interface LedWallProject {
   numbering: NumberingSettings;
   cabinet: CabinetSettings;
   mapping: MappingSettings;
+  routing: RoutingSettings;
   display: DisplaySettings;
   modules: LedModule[];
   legend: {

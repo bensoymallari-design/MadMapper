@@ -11,6 +11,7 @@ import type {
   MappingSettings,
   ModuleSettings,
   NumberingSettings,
+  RoutingSettings,
   ToolMode,
   WallSettings
 } from "@/types/project";
@@ -25,6 +26,7 @@ interface EditorState {
   project: LedWallProject;
   selectedModuleIds: string[];
   activeTool: ToolMode;
+  activeRouteId: string | null;
   selectedColor: string;
   view: ViewState;
   past: LedWallProject[];
@@ -35,6 +37,7 @@ interface EditorState {
   updateNumbering: (settings: Partial<NumberingSettings>) => void;
   updateCabinet: (settings: Partial<CabinetSettings>) => void;
   updateMapping: (settings: Partial<MappingSettings>) => void;
+  updateRouting: (settings: Partial<Omit<RoutingSettings, "routes">>) => void;
   updateDisplay: (settings: Partial<DisplaySettings>) => void;
   setActiveTool: (tool: ToolMode) => void;
   setSelectedColor: (color: string) => void;
@@ -47,6 +50,10 @@ interface EditorState {
   clearSelection: () => void;
   updateSelectedModules: (changes: Partial<Pick<LedModule, "color" | "status" | "enabled" | "port" | "customLabel">>) => void;
   assignMapping: () => void;
+  startReceivingCardRoute: () => void;
+  addCabinetToActiveRoute: (cabinetId: string) => void;
+  finishReceivingCardRoute: () => void;
+  clearReceivingCardRoutes: () => void;
   newProject: () => void;
   importProject: (json: string) => void;
   exportProjectJson: () => string;
@@ -62,6 +69,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   project: createSampleProject(),
   selectedModuleIds: [],
   activeTool: "select",
+  activeRouteId: null,
   selectedColor: "#2563eb",
   view: {
     zoom: 0.08,
@@ -113,6 +121,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     setWithHistory(set, get, (project) => ({
       ...project,
       mapping: { ...project.mapping, ...settings },
+      updatedAt: new Date().toISOString()
+    })),
+
+  updateRouting: (settings) =>
+    setWithHistory(set, get, (project) => ({
+      ...project,
+      routing: { ...project.routing, ...settings },
       updatedAt: new Date().toISOString()
     })),
 
@@ -195,10 +210,73 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
     }),
 
+  startReceivingCardRoute: () => {
+    const state = get();
+    const nextIndex = state.project.routing.routes.length + 1;
+    const routeId = `route-${Date.now()}`;
+    setWithHistory(set, get, (project) => ({
+      ...project,
+      routing: {
+        ...project.routing,
+        enabled: true,
+        showLabels: true,
+        routes: [
+          ...project.routing.routes,
+          {
+            id: routeId,
+            name: `Receiver Route ${nextIndex}`,
+            port: nextIndex,
+            color: project.legend.ports[nextIndex] ?? "#38bdf8",
+            cabinetIds: [],
+            startLabel: `MAIN PORT ${nextIndex}`,
+            endLabel: "END",
+            backupLabel: `BACKUP PORT ${nextIndex}`
+          }
+        ]
+      },
+      updatedAt: new Date().toISOString()
+    }));
+    set({ activeRouteId: routeId, activeTool: "mapping" });
+  },
+
+  addCabinetToActiveRoute: (cabinetId) =>
+    setWithHistory(set, get, (project) => {
+      const activeRouteId = get().activeRouteId;
+      if (!activeRouteId) return project;
+
+      return {
+        ...project,
+        routing: {
+          ...project.routing,
+          routes: project.routing.routes.map((route) => {
+            if (route.id !== activeRouteId || route.cabinetIds.includes(cabinetId)) return route;
+            return {
+              ...route,
+              cabinetIds: [...route.cabinetIds, cabinetId]
+            };
+          })
+        },
+        updatedAt: new Date().toISOString()
+      };
+    }),
+
+  finishReceivingCardRoute: () => set({ activeRouteId: null }),
+
+  clearReceivingCardRoutes: () =>
+    setWithHistory(set, get, (project) => ({
+      ...project,
+      routing: {
+        ...project.routing,
+        routes: []
+      },
+      updatedAt: new Date().toISOString()
+    })),
+
   newProject: () =>
     set((state) => ({
       project: createSampleProject(),
       selectedModuleIds: [],
+      activeRouteId: null,
       past: [...state.past.slice(-HISTORY_LIMIT + 1), cloneProject(state.project)],
       future: []
     })),
@@ -207,6 +285,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => ({
       project: parseProject(json),
       selectedModuleIds: [],
+      activeRouteId: null,
       past: [...state.past.slice(-HISTORY_LIMIT + 1), cloneProject(state.project)],
       future: []
     })),
@@ -235,6 +314,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         project: previous,
         past: state.past.slice(0, -1),
         future: [cloneProject(state.project), ...state.future].slice(0, HISTORY_LIMIT),
+        activeRouteId: null,
         selectedModuleIds: []
       };
     }),
@@ -247,6 +327,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         project: next,
         past: [...state.past, cloneProject(state.project)].slice(-HISTORY_LIMIT),
         future: state.future.slice(1),
+        activeRouteId: null,
         selectedModuleIds: []
       };
     })

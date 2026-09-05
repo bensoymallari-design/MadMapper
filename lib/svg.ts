@@ -40,6 +40,51 @@ export function generateProjectSvg(project: LedWallProject) {
         .join("")
     : "";
 
+  const receiverRoutes = project.routing.enabled
+    ? project.routing.routes
+        .map((route) => {
+          const routeCabinets = route.cabinetIds
+            .map((id) => cabinets.find((cabinet) => cabinet.id === id))
+            .filter((cabinet) => Boolean(cabinet));
+          const lines = routeCabinets
+            .slice(0, -1)
+            .map((cabinet, index) => {
+              const next = routeCabinets[index + 1];
+              if (!cabinet || !next) return "";
+              const start = {
+                x: margin + (cabinet.x + cabinet.width / 2) * scale,
+                y: margin + (cabinet.y + cabinet.height / 2) * scale
+              };
+              const end = {
+                x: margin + (next.x + next.width / 2) * scale,
+                y: margin + (next.y + next.height / 2) * scale
+              };
+              return `<line x1="${start.x}" y1="${start.y}" x2="${end.x}" y2="${end.y}" stroke="${route.color}" stroke-width="3" marker-end="url(#route-arrow)"/>`;
+            })
+            .join("");
+          const nodes = routeCabinets
+            .map((cabinet, index) => {
+              if (!cabinet) return "";
+              const cx = margin + (cabinet.x + cabinet.width / 2) * scale;
+              const cy = margin + (cabinet.y + cabinet.height / 2) * scale;
+              return `<g><circle cx="${cx}" cy="${cy}" r="8" fill="${route.color}"/><text x="${cx}" y="${cy + 3}" text-anchor="middle" font-size="8" fill="#020617">${index + 1}</text></g>`;
+            })
+            .join("");
+          const first = routeCabinets[0];
+          const last = routeCabinets.at(-1);
+          const labels =
+            project.routing.showLabels && first
+              ? `<text x="${margin + (first.x + first.width / 2) * scale}" y="${margin + (first.y + first.height / 2) * scale - 14}" text-anchor="middle" font-size="9" fill="#e0f2fe">${escapeXml(route.startLabel)}</text>${
+                  last && last !== first
+                    ? `<text x="${margin + (last.x + last.width / 2) * scale}" y="${margin + (last.y + last.height / 2) * scale + 20}" text-anchor="middle" font-size="9" fill="#e0f2fe">${escapeXml(`${route.endLabel} / ${route.backupLabel}`)}</text>`
+                    : ""
+                }`
+              : "";
+          return `<g>${lines}${nodes}${labels}</g>`;
+        })
+        .join("")
+    : "";
+
   const pathLines =
     project.display.showDataPaths && project.mapping.enabled
       ? paths
@@ -71,6 +116,7 @@ export function generateProjectSvg(project: LedWallProject) {
   ${moduleRects}
   ${cabinetRects}
   ${pathLines}
+  ${receiverRoutes}
 </svg>`;
 }
 

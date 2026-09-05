@@ -99,6 +99,75 @@ function drawDiagram(doc: jsPDF, project: LedWallProject, x: number, y: number, 
       doc.rect(x + cabinet.x * scale, y + cabinet.y * scale, cabinet.width * scale, cabinet.height * scale);
     });
   }
+
+  if (project.routing.enabled) {
+    const cabinets = calculateCabinetLayout(project.wall, project.module, project.cabinet);
+    drawReceivingCardRoutes(doc, project, cabinets, x, y, scale);
+  }
+}
+
+function drawReceivingCardRoutes(
+  doc: jsPDF,
+  project: LedWallProject,
+  cabinets: ReturnType<typeof calculateCabinetLayout>,
+  x: number,
+  y: number,
+  scale: number
+) {
+  const byId = new Map(cabinets.map((cabinet) => [cabinet.id, cabinet]));
+  project.routing.routes.forEach((route) => {
+    const rgb = hexToRgb(route.color);
+    const routeCabinets = route.cabinetIds.map((id) => byId.get(id)).filter((cabinet) => Boolean(cabinet));
+    if (routeCabinets.length === 0) return;
+
+    doc.setDrawColor(rgb.r, rgb.g, rgb.b);
+    doc.setFillColor(rgb.r, rgb.g, rgb.b);
+    doc.setLineWidth(0.8);
+    routeCabinets.slice(0, -1).forEach((cabinet, index) => {
+      const next = routeCabinets[index + 1];
+      if (!cabinet || !next) return;
+      const start = {
+        x: x + (cabinet.x + cabinet.width / 2) * scale,
+        y: y + (cabinet.y + cabinet.height / 2) * scale
+      };
+      const end = {
+        x: x + (next.x + next.width / 2) * scale,
+        y: y + (next.y + next.height / 2) * scale
+      };
+      doc.line(start.x, start.y, end.x, end.y);
+      doc.circle(end.x, end.y, 1.2, "F");
+    });
+
+    routeCabinets.forEach((cabinet, index) => {
+      if (!cabinet) return;
+      const cx = x + (cabinet.x + cabinet.width / 2) * scale;
+      const cy = y + (cabinet.y + cabinet.height / 2) * scale;
+      doc.circle(cx, cy, 2.5, "F");
+      doc.setTextColor(2, 6, 23);
+      doc.setFontSize(5);
+      doc.text(String(index + 1), cx, cy + 1.4, { align: "center" });
+    });
+
+    if (project.routing.showLabels) {
+      const first = routeCabinets[0];
+      const last = routeCabinets.at(-1);
+      doc.setTextColor(224, 242, 254);
+      doc.setFontSize(6);
+      if (first) {
+        doc.text(route.startLabel, x + (first.x + first.width / 2) * scale, y + (first.y + first.height / 2) * scale - 4, {
+          align: "center"
+        });
+      }
+      if (last && last !== first) {
+        doc.text(
+          `${route.endLabel} / ${route.backupLabel}`,
+          x + (last.x + last.width / 2) * scale,
+          y + (last.y + last.height / 2) * scale + 7,
+          { align: "center" }
+        );
+      }
+    }
+  });
 }
 
 function drawLegend(doc: jsPDF, project: LedWallProject, x: number, y: number) {

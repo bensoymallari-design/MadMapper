@@ -142,8 +142,9 @@ function drawReceivingCardRoutes(
       if (!cabinet) return;
       const cx = x + (cabinet.x + cabinet.width / 2) * scale;
       const cy = y + (cabinet.y + cabinet.height / 2) * scale;
-      doc.circle(cx, cy, 2.5, "F");
-      doc.setTextColor(2, 6, 23);
+      doc.setDrawColor(248, 250, 252);
+      doc.circle(cx, cy, 2.5, "FD");
+      doc.setTextColor(255, 255, 255);
       doc.setFontSize(5);
       doc.text(String(index + 1), cx, cy + 1.4, { align: "center" });
     });

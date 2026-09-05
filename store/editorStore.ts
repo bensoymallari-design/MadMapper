@@ -41,6 +41,7 @@ interface EditorState {
   updateDisplay: (settings: Partial<DisplaySettings>) => void;
   setActiveTool: (tool: ToolMode) => void;
   setSelectedColor: (color: string) => void;
+  updatePortColor: (port: number, color: string) => void;
   setView: (view: Partial<ViewState>) => void;
   selectModule: (id: string, append?: boolean) => void;
   selectModules: (ids: string[], append?: boolean) => void;
@@ -142,6 +143,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setActiveTool: (activeTool) => set({ activeTool }),
   setSelectedColor: (selectedColor) => set({ selectedColor }),
+  updatePortColor: (port, color) =>
+    setWithHistory(set, get, (project) => ({
+      ...project,
+      legend: {
+        ...project.legend,
+        ports: {
+          ...project.legend.ports,
+          [port]: color
+        }
+      },
+      modules: project.modules.map((module) => (module.port === port ? { ...module, color } : module)),
+      routing: {
+        ...getDefaultRouting(),
+        ...project.routing,
+        routes: (project.routing?.routes ?? []).map((route) => (route.port === port ? { ...route, color } : route))
+      },
+      updatedAt: new Date().toISOString()
+    })),
   setView: (view) => set((state) => ({ view: { ...state.view, ...view } })),
 
   selectModule: (id, append = false) =>

@@ -3,7 +3,7 @@
 import { useEditorStore } from "@/store/editorStore";
 
 export function ColorLegend() {
-  const { project } = useEditorStore();
+  const { project, updatePortColor } = useEditorStore();
 
   return (
     <section className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">
@@ -15,8 +15,16 @@ export function ColorLegend() {
             .slice(0, project.mapping.portCount)
             .map(([port, color]) => (
               <div key={port} className="flex items-center justify-between gap-2 text-slate-300">
-                <span>Port {port}</span>
-                <span className="h-4 w-4 rounded border border-white/20" style={{ backgroundColor: color }} />
+                <label className="flex flex-1 cursor-pointer items-center justify-between gap-2">
+                  <span>Port {port}</span>
+                  <input
+                    title={`Change Port ${port} color`}
+                    type="color"
+                    value={color}
+                    onChange={(event) => updatePortColor(Number(port), event.target.value)}
+                    className="h-5 w-8 cursor-pointer rounded border border-white/20 bg-transparent p-0"
+                  />
+                </label>
               </div>
             ))}
         </div>

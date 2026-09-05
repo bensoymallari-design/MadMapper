@@ -403,8 +403,12 @@ function drawReceivingCardRoutes(
       const center = cabinetCenter(cabinet);
       ctx.beginPath();
       ctx.arc(center.x, center.y, Math.max(34 / zoom, 34), 0, Math.PI * 2);
+      ctx.fillStyle = route.color;
       ctx.fill();
-      ctx.fillStyle = "#020617";
+      ctx.strokeStyle = "#f8fafc";
+      ctx.lineWidth = Math.max(5 / zoom, 5);
+      ctx.stroke();
+      ctx.fillStyle = "#ffffff";
       ctx.font = `${Math.max(34 / zoom, 34)}px ui-monospace, monospace`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";

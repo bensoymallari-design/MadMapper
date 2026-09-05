@@ -67,7 +67,7 @@ export function generateProjectSvg(project: LedWallProject) {
               if (!cabinet) return "";
               const cx = margin + (cabinet.x + cabinet.width / 2) * scale;
               const cy = margin + (cabinet.y + cabinet.height / 2) * scale;
-              return `<g><circle cx="${cx}" cy="${cy}" r="8" fill="${route.color}"/><text x="${cx}" y="${cy + 3}" text-anchor="middle" font-size="8" fill="#020617">${index + 1}</text></g>`;
+              return `<g><circle cx="${cx}" cy="${cy}" r="8" fill="${route.color}" stroke="#f8fafc" stroke-width="1.5"/><text x="${cx}" y="${cy + 3}" text-anchor="middle" font-size="8" fill="#ffffff">${index + 1}</text></g>`;
             })
             .join("");
           const first = routeCabinets[0];

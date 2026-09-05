@@ -87,7 +87,7 @@ export function WallCanvas() {
     return () => observer.disconnect();
   });
 
-  const render = useCallback(() => {
+  function render() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -145,25 +145,11 @@ export function WallCanvas() {
     ctx.fillStyle = "#94a3b8";
     ctx.font = "12px ui-monospace, monospace";
     ctx.fillText(`X ${cursorWorld.x.toFixed(0)} ${project.wall.unit}  Y ${cursorWorld.y.toFixed(0)} ${project.wall.unit}`, 26, height - 24);
-  }, [
-    cabinets,
-    cursorWorld.x,
-    cursorWorld.y,
-    mapped,
-    project.display,
-    project.mapping.enabled,
-    project.wall.height,
-    project.wall.unit,
-    project.wall.width,
-    renderModules,
-    selectedModuleIds,
-    selectionRect,
-    view
-  ]);
+  }
 
   useEffect(() => {
     render();
-  }, [render]);
+  });
 
   function screenToWorld(point: Point): Point {
     return {
@@ -172,7 +158,9 @@ export function WallCanvas() {
     };
   }
 
-  function getPoint(event: React.PointerEvent<HTMLCanvasElement>): Point {
+  function getPoint(
+    event: React.PointerEvent<HTMLCanvasElement> | React.WheelEvent<HTMLCanvasElement>
+  ): Point {
     const rect = event.currentTarget.getBoundingClientRect();
     return {
       x: event.clientX - rect.left,

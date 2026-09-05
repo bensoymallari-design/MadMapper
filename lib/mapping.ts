@@ -57,8 +57,8 @@ function orderModules(
     columnOrder.forEach((column, columnIndex) => {
       const rowsForColumn = settings.snake && columnIndex % 2 === 1 ? [...rowOrder].reverse() : rowOrder;
       rowsForColumn.forEach((row) => {
-        const module = moduleByCoordinate.get(`${row}-${column}`);
-        if (module) ordered.push(module);
+        const ledModule = moduleByCoordinate.get(`${row}-${column}`);
+        if (ledModule) ordered.push(ledModule);
       });
     });
     return ordered;
@@ -67,8 +67,8 @@ function orderModules(
   rowOrder.forEach((row, rowIndex) => {
     const columnsForRow = settings.snake && rowIndex % 2 === 1 ? [...columnOrder].reverse() : columnOrder;
     columnsForRow.forEach((column) => {
-      const module = moduleByCoordinate.get(`${row}-${column}`);
-      if (module) ordered.push(module);
+      const ledModule = moduleByCoordinate.get(`${row}-${column}`);
+      if (ledModule) ordered.push(ledModule);
     });
   });
 

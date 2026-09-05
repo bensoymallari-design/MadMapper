@@ -46,6 +46,7 @@ export function WallCanvas() {
   );
 
   const renderModules = project.mapping.enabled && project.display.showDataPaths ? mapped.modules : project.modules;
+  const routing = project.routing ?? { enabled: false, showLabels: true, routes: [] };
 
   const fitWall = useCallback(() => {
     const canvas = canvasRef.current;
@@ -132,8 +133,8 @@ export function WallCanvas() {
       drawDataPaths(ctx, mapped, renderModules, view.zoom);
     }
 
-    if (project.routing.enabled) {
-      drawReceivingCardRoutes(ctx, project.routing.routes, cabinets, activeRouteId, project.routing.showLabels, view.zoom);
+    if (routing.enabled) {
+      drawReceivingCardRoutes(ctx, routing.routes, cabinets, activeRouteId, routing.showLabels, view.zoom);
     }
 
     if (selectionRect) {
@@ -227,7 +228,7 @@ export function WallCanvas() {
     const point = getPoint(event);
     const world = screenToWorld(point);
 
-    if (activeTool === "mapping" && project.routing.enabled && activeRouteId && !hasDragged.current) {
+    if (activeTool === "mapping" && routing.enabled && activeRouteId && !hasDragged.current) {
       const cabinet = hitTestCabinet(world);
       if (cabinet) {
         addCabinetToActiveRoute(cabinet.id);

@@ -19,6 +19,7 @@ export function MappingSettingsPanel() {
     finishReceivingCardRoute,
     clearReceivingCardRoutes
   } = useEditorStore();
+  const routing = project.routing ?? { enabled: false, showLabels: true, routes: [] };
 
   return (
     <section className="space-y-5">
@@ -83,11 +84,11 @@ export function MappingSettingsPanel() {
         </h2>
         <label className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-200">
           Show cabinet routes
-          <input type="checkbox" checked={project.routing.enabled} onChange={(event) => updateRouting({ enabled: event.target.checked })} />
+          <input type="checkbox" checked={routing.enabled} onChange={(event) => updateRouting({ enabled: event.target.checked })} />
         </label>
         <label className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-200">
           Start/end labels
-          <input type="checkbox" checked={project.routing.showLabels} onChange={(event) => updateRouting({ showLabels: event.target.checked })} />
+          <input type="checkbox" checked={routing.showLabels} onChange={(event) => updateRouting({ showLabels: event.target.checked })} />
         </label>
         <div className="rounded-lg border border-sky-500/30 bg-sky-950/20 p-3 text-xs text-sky-100">
           Start a route, then click cabinets on the canvas in the same order as the receiving-card cable path. The first cabinet is labeled
@@ -101,14 +102,14 @@ export function MappingSettingsPanel() {
             Finish route
           </Button>
         </div>
-        <Button variant="danger" className="w-full" disabled={project.routing.routes.length === 0} onClick={clearReceivingCardRoutes}>
+        <Button variant="danger" className="w-full" disabled={routing.routes.length === 0} onClick={clearReceivingCardRoutes}>
           Clear receiver routes
         </Button>
         <div className="space-y-2">
-          {project.routing.routes.length === 0 ? (
+          {routing.routes.length === 0 ? (
             <div className="text-xs text-slate-500">No receiver-card routes yet.</div>
           ) : (
-            project.routing.routes.map((route) => (
+            routing.routes.map((route) => (
               <div key={route.id} className="rounded-lg border border-slate-800 bg-slate-950/60 p-2 text-xs text-slate-300">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-slate-100">{route.name}</span>

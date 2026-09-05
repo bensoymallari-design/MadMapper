@@ -127,7 +127,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   updateRouting: (settings) =>
     setWithHistory(set, get, (project) => ({
       ...project,
-      routing: { ...project.routing, ...settings },
+      routing: { ...getDefaultRouting(), ...project.routing, ...settings },
       updatedAt: new Date().toISOString()
     })),
 
@@ -212,16 +212,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   startReceivingCardRoute: () => {
     const state = get();
-    const nextIndex = state.project.routing.routes.length + 1;
+    const currentRouting = state.project.routing ?? getDefaultRouting();
+    const nextIndex = currentRouting.routes.length + 1;
     const routeId = `route-${Date.now()}`;
     setWithHistory(set, get, (project) => ({
       ...project,
       routing: {
+        ...getDefaultRouting(),
         ...project.routing,
         enabled: true,
         showLabels: true,
         routes: [
-          ...project.routing.routes,
+          ...(project.routing?.routes ?? []),
           {
             id: routeId,
             name: `Receiver Route ${nextIndex}`,
@@ -247,8 +249,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return {
         ...project,
         routing: {
+          ...getDefaultRouting(),
           ...project.routing,
-          routes: project.routing.routes.map((route) => {
+          routes: (project.routing?.routes ?? []).map((route) => {
             if (route.id !== activeRouteId || route.cabinetIds.includes(cabinetId)) return route;
             return {
               ...route,
@@ -266,6 +269,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     setWithHistory(set, get, (project) => ({
       ...project,
       routing: {
+        ...getDefaultRouting(),
         ...project.routing,
         routes: []
       },
@@ -348,4 +352,12 @@ function setWithHistory(
 
 function cloneProject(project: LedWallProject): LedWallProject {
   return JSON.parse(JSON.stringify(project)) as LedWallProject;
+}
+
+function getDefaultRouting(): RoutingSettings {
+  return {
+    enabled: true,
+    showLabels: true,
+    routes: []
+  };
 }

@@ -70,6 +70,11 @@ export function createSampleProject(): LedWallProject {
       direction: "horizontal",
       startingCorner: "topLeft"
     },
+    routing: {
+      enabled: true,
+      showLabels: true,
+      routes: []
+    },
     display: {
       showGrid: true,
       showNumbers: true,
@@ -154,5 +159,12 @@ export function parseProject(json: string): LedWallProject {
   if (!parsed.version || !parsed.wall || !parsed.module || !Array.isArray(parsed.modules)) {
     throw new Error("Invalid LED wall project file.");
   }
-  return parsed;
+  return {
+    ...parsed,
+    routing: parsed.routing ?? {
+      enabled: true,
+      showLabels: true,
+      routes: []
+    }
+  };
 }

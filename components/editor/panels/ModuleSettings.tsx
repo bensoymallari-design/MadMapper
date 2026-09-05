@@ -19,7 +19,7 @@ export function ModuleSettingsPanel() {
 
       {!first ? (
         <div className="rounded-xl border border-slate-700 bg-slate-950/70 p-4 text-sm text-slate-400">
-          Select a module to inspect position, port, color, and status.
+          Select a module or empty disabled slot to inspect it, disable it, or place it back into the wall.
         </div>
       ) : (
         <>
@@ -100,10 +100,10 @@ export function ModuleSettingsPanel() {
 
           <div className="grid grid-cols-2 gap-2">
             <Button variant="secondary" onClick={() => updateSelectedModules({ enabled: true, status: "installed" })}>
-              Enable
+              Enable / place
             </Button>
             <Button variant="danger" onClick={() => updateSelectedModules({ enabled: false, status: "unused" })}>
-              Disable
+              Disable / remove
             </Button>
           </div>
         </>

@@ -145,18 +145,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   selectAll: () =>
     set((state) => ({
-      selectedModuleIds: state.project.modules.filter((module) => module.enabled).map((module) => module.id)
+      selectedModuleIds: state.project.modules.map((module) => module.id)
     })),
 
   selectRow: (row) =>
     set((state) => ({
-      selectedModuleIds: state.project.modules.filter((module) => module.row === row && module.enabled).map((module) => module.id)
+      selectedModuleIds: state.project.modules.filter((module) => module.row === row).map((module) => module.id)
     })),
 
   selectColumn: (column) =>
     set((state) => ({
       selectedModuleIds: state.project.modules
-        .filter((module) => module.column === column && module.enabled)
+        .filter((module) => module.column === column)
         .map((module) => module.id)
     })),
 

@@ -171,7 +171,7 @@ export function WallCanvas() {
   function hitTest(world: Point) {
     const column = Math.floor(world.x / project.module.width);
     const row = Math.floor(world.y / project.module.height);
-    return project.modules.find((module) => module.row === row && module.column === column && module.enabled);
+    return project.modules.find((module) => module.row === row && module.column === column);
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLCanvasElement>) {
@@ -214,7 +214,7 @@ export function WallCanvas() {
     if (activeTool === "select") {
       if (selectionRect && hasDragged.current) {
         const selected = project.modules
-          .filter((module) => module.enabled && rectsIntersect(selectionRect, module))
+          .filter((module) => rectsIntersect(selectionRect, module))
           .map((module) => module.id);
         selectModules(selected, event.ctrlKey || event.metaKey);
       } else {

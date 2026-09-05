@@ -196,12 +196,7 @@ export function WallCanvas() {
     dragStart.current = point;
     lastPointer.current = point;
     hasDragged.current = false;
-    if (activeTool === "mapping" && project.routing.enabled && activeRouteId) {
-      const cabinet = hitTestCabinet(world);
-      if (cabinet) {
-        addCabinetToActiveRoute(cabinet.id);
-      }
-    } else if (activeTool === "select") {
+    if (activeTool === "select") {
       setSelectionRect(null);
     }
   }
@@ -232,7 +227,12 @@ export function WallCanvas() {
     const point = getPoint(event);
     const world = screenToWorld(point);
 
-    if (activeTool === "select") {
+    if (activeTool === "mapping" && project.routing.enabled && activeRouteId && !hasDragged.current) {
+      const cabinet = hitTestCabinet(world);
+      if (cabinet) {
+        addCabinetToActiveRoute(cabinet.id);
+      }
+    } else if (activeTool === "select") {
       if (selectionRect && hasDragged.current) {
         const selected = project.modules
           .filter((module) => rectsIntersect(selectionRect, module))

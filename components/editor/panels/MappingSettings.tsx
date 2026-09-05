@@ -118,7 +118,7 @@ export function MappingSettingsPanel() {
                   Port {route.port} - {route.cabinetIds.length} cabinet{route.cabinetIds.length === 1 ? "" : "s"}
                 </div>
                 <div className="mt-1 text-slate-500">
-                  {route.startLabel} -> {route.backupLabel}
+                  {route.startLabel} {"->"} {route.backupLabel}
                 </div>
               </div>
             ))

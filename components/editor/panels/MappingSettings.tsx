@@ -11,6 +11,7 @@ export function MappingSettingsPanel() {
     activeRouteId,
     updateMapping,
     updateRouting,
+    updatePortColor,
     updateDisplay,
     assignMapping,
     updateCabinet,
@@ -113,7 +114,13 @@ export function MappingSettingsPanel() {
               <div key={route.id} className="rounded-lg border border-slate-800 bg-slate-950/60 p-2 text-xs text-slate-300">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-slate-100">{route.name}</span>
-                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: route.color }} />
+                  <input
+                    title={`Change Port ${route.port} color`}
+                    type="color"
+                    value={route.color}
+                    onChange={(event) => updatePortColor(route.port, event.target.value)}
+                    className="h-5 w-8 cursor-pointer rounded border border-white/20 bg-transparent p-0"
+                  />
                 </div>
                 <div className="mt-1 text-slate-500">
                   Port {route.port} - {route.cabinetIds.length} cabinet{route.cabinetIds.length === 1 ? "" : "s"}

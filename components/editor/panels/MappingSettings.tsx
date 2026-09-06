@@ -9,8 +9,11 @@ export function MappingSettingsPanel() {
   const {
     project,
     activeRouteId,
+    activePowerRouteId,
+    selectedPowerCabinetId,
     updateMapping,
     updateRouting,
+    updatePower,
     updatePortColor,
     updateDisplay,
     assignMapping,
@@ -18,9 +21,23 @@ export function MappingSettingsPanel() {
     updateNumbering,
     startReceivingCardRoute,
     finishReceivingCardRoute,
-    clearReceivingCardRoutes
+    clearReceivingCardRoutes,
+    startPowerLoopRoute,
+    finishPowerLoopRoute,
+    clearPowerLoopRoutes,
+    setCabinetPowerSupplies
   } = useEditorStore();
   const routing = project.routing ?? { enabled: false, showLabels: true, routes: [] };
+  const power = project.power ?? {
+    enabled: false,
+    showLabels: true,
+    defaultSuppliesPerCabinet: 1,
+    cabinetSupplies: {},
+    routes: []
+  };
+  const selectedSupplyCount = selectedPowerCabinetId
+    ? power.cabinetSupplies[selectedPowerCabinetId] ?? power.defaultSuppliesPerCabinet
+    : power.defaultSuppliesPerCabinet;
 
   return (
     <section className="space-y-5">
@@ -127,6 +144,94 @@ export function MappingSettingsPanel() {
                 </div>
                 <div className="mt-1 text-slate-500">
                   {route.startLabel} {"->"} {route.backupLabel}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <h2 className="border-b border-slate-800 pb-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
+          DC Power Loop
+        </h2>
+        <label className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-200">
+          Show power loops
+          <input type="checkbox" checked={power.enabled} onChange={(event) => updatePower({ enabled: event.target.checked })} />
+        </label>
+        <label className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-200">
+          Power labels
+          <input type="checkbox" checked={power.showLabels} onChange={(event) => updatePower({ showLabels: event.target.checked })} />
+        </label>
+        <FieldGroup label="Default PSU per cabinet">
+          <TextInput
+            type="number"
+            min={0}
+            value={power.defaultSuppliesPerCabinet}
+            onChange={(event) => updatePower({ defaultSuppliesPerCabinet: Math.max(0, Number(event.target.value)) })}
+          />
+        </FieldGroup>
+        <div className="rounded-lg border border-orange-500/30 bg-orange-950/20 p-3 text-xs text-orange-100">
+          Start a DC loop, then click cabinets in the order the low-voltage power jumps cabinet-to-cabinet. Click a cabinet in DC Power mode
+          to edit how many PSUs are mounted in that cabinet.
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant={activePowerRouteId ? "primary" : "secondary"} onClick={startPowerLoopRoute}>
+            Start DC loop
+          </Button>
+          <Button variant="secondary" disabled={!activePowerRouteId} onClick={finishPowerLoopRoute}>
+            Finish loop
+          </Button>
+        </div>
+        <Button variant="danger" className="w-full" disabled={power.routes.length === 0} onClick={clearPowerLoopRoutes}>
+          Clear DC loops
+        </Button>
+        <FieldGroup label={selectedPowerCabinetId ? `Selected cabinet PSU count` : "Selected cabinet PSU count"}>
+          <TextInput
+            type="number"
+            min={0}
+            disabled={!selectedPowerCabinetId}
+            value={selectedSupplyCount}
+            onChange={(event) => {
+              if (selectedPowerCabinetId) {
+                setCabinetPowerSupplies(selectedPowerCabinetId, Number(event.target.value));
+              }
+            }}
+          />
+        </FieldGroup>
+        <div className="grid grid-cols-3 gap-2">
+          {[1, 2, 3].map((count) => (
+            <Button
+              key={count}
+              variant="ghost"
+              size="sm"
+              disabled={!selectedPowerCabinetId}
+              onClick={() => {
+                if (selectedPowerCabinetId) {
+                  setCabinetPowerSupplies(selectedPowerCabinetId, count);
+                }
+              }}
+            >
+              PSU x{count}
+            </Button>
+          ))}
+        </div>
+        {!selectedPowerCabinetId && <div className="text-xs text-slate-500">Click a cabinet with the DC Power tool to edit its PSU count.</div>}
+        <div className="space-y-2">
+          {power.routes.length === 0 ? (
+            <div className="text-xs text-slate-500">No DC power loops yet.</div>
+          ) : (
+            power.routes.map((route) => (
+              <div key={route.id} className="rounded-lg border border-orange-900/60 bg-orange-950/20 p-2 text-xs text-orange-100">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold">{route.name}</span>
+                  <span className="h-3 w-3 rounded-full border border-white/30" style={{ backgroundColor: route.color }} />
+                </div>
+                <div className="mt-1 text-orange-200/70">
+                  {route.cabinetIds.length} cabinet{route.cabinetIds.length === 1 ? "" : "s"} in DC loop
+                </div>
+                <div className="mt-1 text-orange-200/70">
+                  {route.sourceLabel} {"->"} {route.endLabel}
                 </div>
               </div>
             ))

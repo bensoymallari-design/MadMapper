@@ -104,6 +104,11 @@ function drawDiagram(doc: jsPDF, project: LedWallProject, x: number, y: number, 
     const cabinets = calculateCabinetLayout(project.wall, project.module, project.cabinet);
     drawReceivingCardRoutes(doc, project, cabinets, x, y, scale);
   }
+
+  if (project.power?.enabled) {
+    const cabinets = calculateCabinetLayout(project.wall, project.module, project.cabinet);
+    drawPowerLoops(doc, project, cabinets, x, y, scale);
+  }
 }
 
 function drawReceivingCardRoutes(
@@ -166,6 +171,84 @@ function drawReceivingCardRoutes(
           y + (last.y + last.height / 2) * scale + 7,
           { align: "center" }
         );
+      }
+    }
+  });
+}
+
+function drawPowerLoops(
+  doc: jsPDF,
+  project: LedWallProject,
+  cabinets: ReturnType<typeof calculateCabinetLayout>,
+  x: number,
+  y: number,
+  scale: number
+) {
+  const power = project.power;
+  if (!power) return;
+
+  cabinets.forEach((cabinet) => {
+    const count = power.cabinetSupplies[cabinet.id] ?? power.defaultSuppliesPerCabinet;
+    if (count <= 0) return;
+    const badgeX = x + (cabinet.x + cabinet.width) * scale - 13;
+    const badgeY = y + cabinet.y * scale + 2;
+    doc.setFillColor(124, 45, 18);
+    doc.setDrawColor(254, 215, 170);
+    doc.rect(badgeX, badgeY, 12, 5, "FD");
+    doc.setTextColor(255, 247, 237);
+    doc.setFontSize(4);
+    doc.text(`PSU x${count}`, badgeX + 6, badgeY + 3.5, { align: "center" });
+  });
+
+  const byId = new Map(cabinets.map((cabinet) => [cabinet.id, cabinet]));
+  power.routes.forEach((route) => {
+    const rgb = hexToRgb(route.color);
+    const routeCabinets = route.cabinetIds.map((id) => byId.get(id)).filter((cabinet) => Boolean(cabinet));
+    if (routeCabinets.length === 0) return;
+
+    doc.setDrawColor(rgb.r, rgb.g, rgb.b);
+    doc.setFillColor(rgb.r, rgb.g, rgb.b);
+    doc.setLineWidth(1);
+    routeCabinets.slice(0, -1).forEach((cabinet, index) => {
+      const next = routeCabinets[index + 1];
+      if (!cabinet || !next) return;
+      const start = {
+        x: x + (cabinet.x + cabinet.width / 2) * scale,
+        y: y + (cabinet.y + cabinet.height * 0.72) * scale
+      };
+      const end = {
+        x: x + (next.x + next.width / 2) * scale,
+        y: y + (next.y + next.height * 0.72) * scale
+      };
+      doc.line(start.x, start.y, end.x, end.y);
+      doc.rect(end.x - 1, end.y - 1, 2, 2, "F");
+    });
+
+    routeCabinets.forEach((cabinet, index) => {
+      if (!cabinet) return;
+      const markerX = x + (cabinet.x + cabinet.width / 2) * scale;
+      const markerY = y + (cabinet.y + cabinet.height * 0.72) * scale;
+      doc.setDrawColor(255, 247, 237);
+      doc.rect(markerX - 2.7, markerY - 2, 5.4, 4, "FD");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(3.5);
+      doc.text(`DC${index + 1}`, markerX, markerY + 1.2, { align: "center" });
+    });
+
+    if (power.showLabels) {
+      const first = routeCabinets[0];
+      const last = routeCabinets.at(-1);
+      doc.setTextColor(255, 247, 237);
+      doc.setFontSize(5);
+      if (first) {
+        doc.text(route.sourceLabel, x + (first.x + first.width / 2) * scale, y + (first.y + first.height * 0.72) * scale - 5, {
+          align: "center"
+        });
+      }
+      if (last && last !== first) {
+        doc.text(route.endLabel, x + (last.x + last.width / 2) * scale, y + (last.y + last.height * 0.72) * scale + 7, {
+          align: "center"
+        });
       }
     }
   });

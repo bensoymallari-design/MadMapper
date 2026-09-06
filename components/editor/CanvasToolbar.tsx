@@ -11,6 +11,7 @@ import {
   Maximize,
   Minus,
   MousePointer2,
+  PlugZap,
   Redo2,
   Route,
   Save,
@@ -32,6 +33,7 @@ const tools: { id: ToolMode; label: string; icon: React.ComponentType<{ classNam
   { id: "pan", label: "Pan", icon: Hand },
   { id: "color", label: "Color", icon: BoxSelect },
   { id: "mapping", label: "Port Mapping", icon: Route },
+  { id: "power", label: "DC Power", icon: PlugZap },
   { id: "cabinet", label: "Cabinet", icon: Grid3X3 },
   { id: "measure", label: "Measure", icon: Map },
   { id: "dimension", label: "Dimension", icon: Settings2 }

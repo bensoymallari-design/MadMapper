@@ -27,7 +27,11 @@ export function WallCanvas() {
     selectModules,
     clearSelection,
     addCabinetToActiveRoute,
-    activeRouteId
+    activeRouteId,
+    addCabinetToActivePowerLoop,
+    activePowerRouteId,
+    selectedPowerCabinetId,
+    selectPowerCabinet
   } = useEditorStore();
 
   const metrics = useMemo(
@@ -47,6 +51,13 @@ export function WallCanvas() {
 
   const renderModules = project.mapping.enabled && project.display.showDataPaths ? mapped.modules : project.modules;
   const routing = project.routing ?? { enabled: false, showLabels: true, routes: [] };
+  const power = project.power ?? {
+    enabled: false,
+    showLabels: true,
+    defaultSuppliesPerCabinet: 1,
+    cabinetSupplies: {},
+    routes: []
+  };
 
   const fitWall = useCallback(() => {
     const canvas = canvasRef.current;
@@ -135,6 +146,11 @@ export function WallCanvas() {
 
     if (routing.enabled) {
       drawReceivingCardRoutes(ctx, routing.routes, cabinets, activeRouteId, routing.showLabels, view.zoom);
+    }
+
+    if (power.enabled) {
+      drawPowerLoopRoutes(ctx, power.routes, cabinets, activePowerRouteId, power.showLabels, view.zoom);
+      drawPowerSupplyBadges(ctx, cabinets, power.cabinetSupplies, power.defaultSuppliesPerCabinet, selectedPowerCabinetId, view.zoom);
     }
 
     if (selectionRect) {
@@ -232,6 +248,12 @@ export function WallCanvas() {
       const cabinet = hitTestCabinet(world);
       if (cabinet) {
         addCabinetToActiveRoute(cabinet.id);
+      }
+    } else if (activeTool === "power" && power.enabled && !hasDragged.current) {
+      const cabinet = hitTestCabinet(world);
+      selectPowerCabinet(cabinet?.id ?? null);
+      if (cabinet && activePowerRouteId) {
+        addCabinetToActivePowerLoop(cabinet.id);
       }
     } else if (activeTool === "select") {
       if (selectionRect && hasDragged.current) {
@@ -431,6 +453,111 @@ function drawReceivingCardRoutes(
 
     ctx.restore();
   });
+}
+
+function drawPowerSupplyBadges(
+  ctx: CanvasRenderingContext2D,
+  cabinets: { id: string; x: number; y: number; width: number; height: number }[],
+  cabinetSupplies: Record<string, number>,
+  defaultSuppliesPerCabinet: number,
+  selectedPowerCabinetId: string | null,
+  zoom: number
+) {
+  cabinets.forEach((cabinet) => {
+    const count = cabinetSupplies[cabinet.id] ?? defaultSuppliesPerCabinet;
+    if (count <= 0) return;
+    const x = cabinet.x + Math.max(24 / zoom, 24);
+    const y = cabinet.y + Math.max(34 / zoom, 34);
+    const width = Math.max(185 / zoom, 185);
+    const height = Math.max(54 / zoom, 54);
+
+    ctx.save();
+    ctx.fillStyle = selectedPowerCabinetId === cabinet.id ? "rgba(249, 115, 22, 0.95)" : "rgba(120, 53, 15, 0.9)";
+    ctx.strokeStyle = "#fed7aa";
+    ctx.lineWidth = Math.max(3 / zoom, 3);
+    ctx.fillRect(x, y, width, height);
+    ctx.strokeRect(x, y, width, height);
+    ctx.fillStyle = "#fff7ed";
+    ctx.font = `${Math.max(30 / zoom, 30)}px ui-monospace, monospace`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`PSU x${count}`, x + width / 2, y + height / 2);
+    ctx.restore();
+  });
+}
+
+function drawPowerLoopRoutes(
+  ctx: CanvasRenderingContext2D,
+  routes: { id: string; name: string; color: string; cabinetIds: string[]; sourceLabel: string; endLabel: string }[],
+  cabinets: { id: string; x: number; y: number; width: number; height: number }[],
+  activePowerRouteId: string | null,
+  showLabels: boolean,
+  zoom: number
+) {
+  const byId = new Map(cabinets.map((cabinet) => [cabinet.id, cabinet]));
+
+  routes.forEach((route) => {
+    const routeCabinets = route.cabinetIds
+      .map((id) => byId.get(id))
+      .filter((cabinet): cabinet is { id: string; x: number; y: number; width: number; height: number } => Boolean(cabinet));
+    if (routeCabinets.length === 0) return;
+
+    ctx.save();
+    ctx.strokeStyle = route.color;
+    ctx.fillStyle = route.color;
+    ctx.lineWidth = Math.max(10 / zoom, 10);
+    ctx.setLineDash(activePowerRouteId === route.id ? [Math.max(32 / zoom, 32), Math.max(14 / zoom, 14)] : []);
+
+    routeCabinets.slice(0, -1).forEach((cabinet, index) => {
+      const next = routeCabinets[index + 1];
+      if (!next) return;
+      const start = powerAnchor(cabinet);
+      const end = powerAnchor(next);
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+      drawArrowHead(ctx, start, end, zoom);
+    });
+
+    routeCabinets.forEach((cabinet, index) => {
+      const anchor = powerAnchor(cabinet);
+      ctx.beginPath();
+      ctx.rect(anchor.x - Math.max(34 / zoom, 34), anchor.y - Math.max(34 / zoom, 34), Math.max(68 / zoom, 68), Math.max(68 / zoom, 68));
+      ctx.fillStyle = route.color;
+      ctx.fill();
+      ctx.strokeStyle = "#fff7ed";
+      ctx.lineWidth = Math.max(5 / zoom, 5);
+      ctx.stroke();
+      ctx.fillStyle = "#ffffff";
+      ctx.font = `${Math.max(32 / zoom, 32)}px ui-monospace, monospace`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(`DC${index + 1}`, anchor.x, anchor.y);
+    });
+
+    if (showLabels) {
+      const first = routeCabinets[0];
+      const last = routeCabinets.at(-1);
+      if (first) {
+        const anchor = powerAnchor(first);
+        drawRouteLabel(ctx, route.sourceLabel, anchor.x, anchor.y - Math.max(82 / zoom, 82), route.color, zoom);
+      }
+      if (last && last !== first) {
+        const anchor = powerAnchor(last);
+        drawRouteLabel(ctx, route.endLabel, anchor.x, anchor.y + Math.max(92 / zoom, 92), route.color, zoom);
+      }
+    }
+
+    ctx.restore();
+  });
+}
+
+function powerAnchor(cabinet: { x: number; y: number; width: number; height: number }) {
+  return {
+    x: cabinet.x + cabinet.width / 2,
+    y: cabinet.y + cabinet.height * 0.72
+  };
 }
 
 function cabinetCenter(cabinet: { x: number; y: number; width: number; height: number }) {

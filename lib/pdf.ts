@@ -187,18 +187,20 @@ function drawPowerLoops(
   const power = project.power;
   if (!power) return;
 
-  cabinets.forEach((cabinet) => {
-    const count = Number(power.cabinetSupplies[cabinet.id] ?? power.defaultSuppliesPerCabinet);
-    if (!Number.isFinite(count) || count <= 1) return;
-    const badgeX = x + (cabinet.x + cabinet.width) * scale - 13;
-    const badgeY = y + cabinet.y * scale + 2;
-    doc.setFillColor(124, 45, 18);
-    doc.setDrawColor(254, 215, 170);
-    doc.rect(badgeX, badgeY, 12, 5, "FD");
-    doc.setTextColor(255, 247, 237);
-    doc.setFontSize(4);
-    doc.text(`PSU x${count}`, badgeX + 6, badgeY + 3.5, { align: "center" });
-  });
+  if (power.showSupplyBadges) {
+    cabinets.forEach((cabinet) => {
+      const count = Number(power.cabinetSupplies[cabinet.id] ?? power.defaultSuppliesPerCabinet);
+      if (!Number.isFinite(count) || count <= 0) return;
+      const badgeX = x + (cabinet.x + cabinet.width) * scale - 13;
+      const badgeY = y + cabinet.y * scale + 2;
+      doc.setFillColor(124, 45, 18);
+      doc.setDrawColor(254, 215, 170);
+      doc.rect(badgeX, badgeY, 12, 5, "FD");
+      doc.setTextColor(255, 247, 237);
+      doc.setFontSize(4);
+      doc.text(`PSU x${count}`, badgeX + 6, badgeY + 3.5, { align: "center" });
+    });
+  }
 
   const byId = new Map(cabinets.map((cabinet) => [cabinet.id, cabinet]));
   power.routes.forEach((route) => {

@@ -78,6 +78,7 @@ export function createSampleProject(): LedWallProject {
     power: {
       enabled: true,
       showLabels: true,
+      showSupplyBadges: true,
       defaultSuppliesPerCabinet: 1,
       cabinetSupplies: {},
       routes: []
@@ -166,6 +167,7 @@ export function parseProject(json: string): LedWallProject {
   if (!parsed.version || !parsed.wall || !parsed.module || !Array.isArray(parsed.modules)) {
     throw new Error("Invalid LED wall project file.");
   }
+  const parsedPower = (parsed as { power?: Partial<LedWallProject["power"]> }).power;
   return {
     ...parsed,
     routing: parsed.routing ?? {
@@ -173,12 +175,14 @@ export function parseProject(json: string): LedWallProject {
       showLabels: true,
       routes: []
     },
-    power: parsed.power ?? {
+    power: {
       enabled: true,
       showLabels: true,
+      showSupplyBadges: true,
       defaultSuppliesPerCabinet: 1,
       cabinetSupplies: {},
-      routes: []
+      routes: [],
+      ...parsedPower
     }
   };
 }

@@ -85,6 +85,71 @@ export function generateProjectSvg(project: LedWallProject) {
         .join("")
     : "";
 
+  const power = project.power ?? {
+    enabled: false,
+    showLabels: true,
+    defaultSuppliesPerCabinet: 1,
+    cabinetSupplies: {},
+    routes: []
+  };
+
+  const powerBadges = power.enabled
+    ? cabinets
+        .map((cabinet) => {
+          const count = power.cabinetSupplies[cabinet.id] ?? power.defaultSuppliesPerCabinet;
+          if (count <= 0) return "";
+          const x = margin + (cabinet.x + cabinet.width) * scale - 42;
+          const y = margin + cabinet.y * scale + 8;
+          return `<g><rect x="${x}" y="${y}" width="38" height="16" fill="#7c2d12" stroke="#fed7aa" stroke-width="1"/><text x="${x + 19}" y="${y + 11}" text-anchor="middle" font-size="8" fill="#fff7ed">PSU x${count}</text></g>`;
+        })
+        .join("")
+    : "";
+
+  const powerRoutes = power.enabled
+    ? power.routes
+        .map((route) => {
+          const routeCabinets = route.cabinetIds
+            .map((id) => cabinets.find((cabinet) => cabinet.id === id))
+            .filter((cabinet) => Boolean(cabinet));
+          const lines = routeCabinets
+            .slice(0, -1)
+            .map((cabinet, index) => {
+              const next = routeCabinets[index + 1];
+              if (!cabinet || !next) return "";
+              const start = {
+                x: margin + (cabinet.x + cabinet.width / 2) * scale,
+                y: margin + (cabinet.y + cabinet.height * 0.72) * scale
+              };
+              const end = {
+                x: margin + (next.x + next.width / 2) * scale,
+                y: margin + (next.y + next.height * 0.72) * scale
+              };
+              return `<line x1="${start.x}" y1="${start.y}" x2="${end.x}" y2="${end.y}" stroke="${route.color}" stroke-width="4" marker-end="url(#power-arrow)"/>`;
+            })
+            .join("");
+          const nodes = routeCabinets
+            .map((cabinet, index) => {
+              if (!cabinet) return "";
+              const x = margin + (cabinet.x + cabinet.width / 2) * scale;
+              const y = margin + (cabinet.y + cabinet.height * 0.72) * scale;
+              return `<g><rect x="${x - 10}" y="${y - 8}" width="20" height="16" fill="${route.color}" stroke="#fff7ed" stroke-width="1.5"/><text x="${x}" y="${y + 3}" text-anchor="middle" font-size="7" fill="#ffffff">DC${index + 1}</text></g>`;
+            })
+            .join("");
+          const first = routeCabinets[0];
+          const last = routeCabinets.at(-1);
+          const labels =
+            power.showLabels && first
+              ? `<text x="${margin + (first.x + first.width / 2) * scale}" y="${margin + (first.y + first.height * 0.72) * scale - 16}" text-anchor="middle" font-size="9" fill="#fff7ed">${escapeXml(route.sourceLabel)}</text>${
+                  last && last !== first
+                    ? `<text x="${margin + (last.x + last.width / 2) * scale}" y="${margin + (last.y + last.height * 0.72) * scale + 22}" text-anchor="middle" font-size="9" fill="#fff7ed">${escapeXml(route.endLabel)}</text>`
+                    : ""
+                }`
+              : "";
+          return `<g>${lines}${nodes}${labels}</g>`;
+        })
+        .join("")
+    : "";
+
   const pathLines =
     project.display.showDataPaths && project.mapping.enabled
       ? paths
@@ -105,6 +170,9 @@ export function generateProjectSvg(project: LedWallProject) {
     <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
       <path d="M0,0 L8,4 L0,8 Z" fill="#38bdf8"/>
     </marker>
+    <marker id="power-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#f97316"/>
+    </marker>
   </defs>
   <rect width="100%" height="100%" fill="#020617"/>
   <text x="${margin}" y="36" font-size="18" fill="#e0f2fe" font-family="Arial">LED WALL MAPPING - ${escapeXml(project.projectName)}</text>
@@ -117,6 +185,8 @@ export function generateProjectSvg(project: LedWallProject) {
   ${cabinetRects}
   ${pathLines}
   ${receiverRoutes}
+  ${powerBadges}
+  ${powerRoutes}
 </svg>`;
 }
 

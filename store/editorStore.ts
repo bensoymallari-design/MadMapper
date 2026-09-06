@@ -11,6 +11,7 @@ import type {
   MappingSettings,
   ModuleSettings,
   NumberingSettings,
+  PowerSettings,
   RoutingSettings,
   ToolMode,
   WallSettings
@@ -27,6 +28,8 @@ interface EditorState {
   selectedModuleIds: string[];
   activeTool: ToolMode;
   activeRouteId: string | null;
+  activePowerRouteId: string | null;
+  selectedPowerCabinetId: string | null;
   selectedColor: string;
   view: ViewState;
   past: LedWallProject[];
@@ -38,6 +41,7 @@ interface EditorState {
   updateCabinet: (settings: Partial<CabinetSettings>) => void;
   updateMapping: (settings: Partial<MappingSettings>) => void;
   updateRouting: (settings: Partial<Omit<RoutingSettings, "routes">>) => void;
+  updatePower: (settings: Partial<Omit<PowerSettings, "routes" | "cabinetSupplies">>) => void;
   updateDisplay: (settings: Partial<DisplaySettings>) => void;
   setActiveTool: (tool: ToolMode) => void;
   setSelectedColor: (color: string) => void;
@@ -55,6 +59,12 @@ interface EditorState {
   addCabinetToActiveRoute: (cabinetId: string) => void;
   finishReceivingCardRoute: () => void;
   clearReceivingCardRoutes: () => void;
+  startPowerLoopRoute: () => void;
+  addCabinetToActivePowerLoop: (cabinetId: string) => void;
+  finishPowerLoopRoute: () => void;
+  clearPowerLoopRoutes: () => void;
+  selectPowerCabinet: (cabinetId: string | null) => void;
+  setCabinetPowerSupplies: (cabinetId: string, count: number) => void;
   newProject: () => void;
   importProject: (json: string) => void;
   exportProjectJson: () => string;
@@ -71,6 +81,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectedModuleIds: [],
   activeTool: "select",
   activeRouteId: null,
+  activePowerRouteId: null,
+  selectedPowerCabinetId: null,
   selectedColor: "#2563eb",
   view: {
     zoom: 0.08,
@@ -129,6 +141,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     setWithHistory(set, get, (project) => ({
       ...project,
       routing: { ...getDefaultRouting(), ...project.routing, ...settings },
+      updatedAt: new Date().toISOString()
+    })),
+
+  updatePower: (settings) =>
+    setWithHistory(set, get, (project) => ({
+      ...project,
+      power: { ...getDefaultPower(), ...project.power, ...settings },
       updatedAt: new Date().toISOString()
     })),
 
@@ -295,11 +314,96 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       updatedAt: new Date().toISOString()
     })),
 
+  startPowerLoopRoute: () => {
+    const state = get();
+    const currentPower = state.project.power ?? getDefaultPower();
+    const nextIndex = currentPower.routes.length + 1;
+    const routeId = `power-route-${Date.now()}`;
+    setWithHistory(set, get, (project) => ({
+      ...project,
+      power: {
+        ...getDefaultPower(),
+        ...project.power,
+        enabled: true,
+        showLabels: true,
+        routes: [
+          ...(project.power?.routes ?? []),
+          {
+            id: routeId,
+            name: `DC Power Loop ${nextIndex}`,
+            color: "#f97316",
+            cabinetIds: [],
+            sourceLabel: `DC PSU SOURCE ${nextIndex}`,
+            endLabel: `DC LOOP END ${nextIndex}`
+          }
+        ]
+      },
+      updatedAt: new Date().toISOString()
+    }));
+    set({ activePowerRouteId: routeId, activeTool: "power" });
+  },
+
+  addCabinetToActivePowerLoop: (cabinetId) =>
+    setWithHistory(set, get, (project) => {
+      const activePowerRouteId = get().activePowerRouteId;
+      if (!activePowerRouteId) return project;
+
+      return {
+        ...project,
+        power: {
+          ...getDefaultPower(),
+          ...project.power,
+          routes: (project.power?.routes ?? []).map((route) => {
+            if (route.id !== activePowerRouteId || route.cabinetIds.includes(cabinetId)) return route;
+            return {
+              ...route,
+              cabinetIds: [...route.cabinetIds, cabinetId]
+            };
+          })
+        },
+        updatedAt: new Date().toISOString()
+      };
+    }),
+
+  finishPowerLoopRoute: () => set({ activePowerRouteId: null }),
+
+  clearPowerLoopRoutes: () =>
+    {
+      setWithHistory(set, get, (project) => ({
+        ...project,
+        power: {
+          ...getDefaultPower(),
+          ...project.power,
+          routes: []
+        },
+        updatedAt: new Date().toISOString()
+      }));
+      set({ activePowerRouteId: null });
+    },
+
+  selectPowerCabinet: (cabinetId) => set({ selectedPowerCabinetId: cabinetId }),
+
+  setCabinetPowerSupplies: (cabinetId, count) =>
+    setWithHistory(set, get, (project) => ({
+      ...project,
+      power: {
+        ...getDefaultPower(),
+        ...project.power,
+        cabinetSupplies: {
+          ...(project.power?.cabinetSupplies ?? {}),
+          [cabinetId]: Math.max(0, Math.round(count))
+        }
+      },
+      updatedAt: new Date().toISOString()
+    })),
+
   newProject: () =>
     set((state) => ({
       project: createSampleProject(),
       selectedModuleIds: [],
       activeRouteId: null,
+      activePowerRouteId: null,
+      selectedPowerCabinetId: null,
       past: [...state.past.slice(-HISTORY_LIMIT + 1), cloneProject(state.project)],
       future: []
     })),
@@ -309,6 +413,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       project: parseProject(json),
       selectedModuleIds: [],
       activeRouteId: null,
+      activePowerRouteId: null,
+      selectedPowerCabinetId: null,
       past: [...state.past.slice(-HISTORY_LIMIT + 1), cloneProject(state.project)],
       future: []
     })),
@@ -338,6 +444,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         past: state.past.slice(0, -1),
         future: [cloneProject(state.project), ...state.future].slice(0, HISTORY_LIMIT),
         activeRouteId: null,
+        activePowerRouteId: null,
+        selectedPowerCabinetId: null,
         selectedModuleIds: []
       };
     }),
@@ -351,6 +459,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         past: [...state.past, cloneProject(state.project)].slice(-HISTORY_LIMIT),
         future: state.future.slice(1),
         activeRouteId: null,
+        activePowerRouteId: null,
+        selectedPowerCabinetId: null,
         selectedModuleIds: []
       };
     })
@@ -377,6 +487,16 @@ function getDefaultRouting(): RoutingSettings {
   return {
     enabled: true,
     showLabels: true,
+    routes: []
+  };
+}
+
+function getDefaultPower(): PowerSettings {
+  return {
+    enabled: true,
+    showLabels: true,
+    defaultSuppliesPerCabinet: 1,
+    cabinetSupplies: {},
     routes: []
   };
 }

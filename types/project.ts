@@ -19,6 +19,7 @@ export type ToolMode =
   | "pan"
   | "color"
   | "mapping"
+  | "power"
   | "cabinet"
   | "measure"
   | "dimension";
@@ -81,6 +82,23 @@ export interface RoutingSettings {
   enabled: boolean;
   showLabels: boolean;
   routes: ReceivingCardRoute[];
+}
+
+export interface PowerLoopRoute {
+  id: string;
+  name: string;
+  color: string;
+  cabinetIds: string[];
+  sourceLabel: string;
+  endLabel: string;
+}
+
+export interface PowerSettings {
+  enabled: boolean;
+  showLabels: boolean;
+  defaultSuppliesPerCabinet: number;
+  cabinetSupplies: Record<string, number>;
+  routes: PowerLoopRoute[];
 }
 
 export interface DisplaySettings {
@@ -146,6 +164,7 @@ export interface LedWallProject {
   cabinet: CabinetSettings;
   mapping: MappingSettings;
   routing: RoutingSettings;
+  power: PowerSettings;
   display: DisplaySettings;
   modules: LedModule[];
   legend: {

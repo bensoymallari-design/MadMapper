@@ -96,8 +96,8 @@ export function generateProjectSvg(project: LedWallProject) {
   const powerBadges = power.enabled
     ? cabinets
         .map((cabinet) => {
-          const count = power.cabinetSupplies[cabinet.id] ?? power.defaultSuppliesPerCabinet;
-          if (count <= 1) return "";
+          const count = Number(power.cabinetSupplies[cabinet.id] ?? power.defaultSuppliesPerCabinet);
+          if (!Number.isFinite(count) || count <= 1) return "";
           const x = margin + (cabinet.x + cabinet.width) * scale - 42;
           const y = margin + cabinet.y * scale + 8;
           return `<g><rect x="${x}" y="${y}" width="38" height="16" fill="#7c2d12" stroke="#fed7aa" stroke-width="1"/><text x="${x + 19}" y="${y + 11}" text-anchor="middle" font-size="8" fill="#fff7ed">PSU x${count}</text></g>`;

@@ -464,9 +464,9 @@ function drawPowerSupplyBadges(
   zoom: number
 ) {
   cabinets.forEach((cabinet) => {
-    const count = cabinetSupplies[cabinet.id] ?? defaultSuppliesPerCabinet;
+    const count = Number(cabinetSupplies[cabinet.id] ?? defaultSuppliesPerCabinet);
     const isSelected = selectedPowerCabinetId === cabinet.id;
-    if (count <= 0) return;
+    if (!Number.isFinite(count) || count <= 0) return;
     if (count === 1 && !isSelected) return;
 
     const x = cabinet.x + Math.max(14 / zoom, 14);

@@ -188,8 +188,8 @@ function drawPowerLoops(
   if (!power) return;
 
   cabinets.forEach((cabinet) => {
-    const count = power.cabinetSupplies[cabinet.id] ?? power.defaultSuppliesPerCabinet;
-    if (count <= 1) return;
+    const count = Number(power.cabinetSupplies[cabinet.id] ?? power.defaultSuppliesPerCabinet);
+    if (!Number.isFinite(count) || count <= 1) return;
     const badgeX = x + (cabinet.x + cabinet.width) * scale - 13;
     const badgeY = y + cabinet.y * scale + 2;
     doc.setFillColor(124, 45, 18);

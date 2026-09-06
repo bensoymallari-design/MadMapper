@@ -186,7 +186,6 @@ export function parseProject(json: string): LedWallProject {
     routing: {
       enabled: true,
       showLabels: true,
-      routes: [],
       ...parsedRouting,
       routes: (parsedRouting?.routes ?? []).map((route) => ({
         ...route,
@@ -199,7 +198,6 @@ export function parseProject(json: string): LedWallProject {
       showSupplyBadges: true,
       defaultSuppliesPerCabinet: 1,
       cabinetSupplies: {},
-      routes: [],
       ...parsedPower,
       routes: (parsedPower?.routes ?? []).map((route) => ({
         ...route,

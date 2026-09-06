@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CanvasToolbar } from "@/components/editor/CanvasToolbar";
 import { ColorLegend } from "@/components/editor/ColorLegend";
+import { CollapsiblePanel } from "@/components/editor/CollapsiblePanel";
 import { ExportDialog } from "@/components/editor/export/ExportDialog";
 import { ProjectManager } from "@/components/editor/ProjectManager";
 import { StatusBar } from "@/components/editor/StatusBar";
@@ -97,11 +98,19 @@ export function WallEditor() {
       <CanvasToolbar onOpenExport={() => setExportOpen(true)} onImport={() => importRef.current?.click()} />
       <div className="grid min-h-0 flex-1 grid-cols-[320px_minmax(0,1fr)_340px] gap-3">
         <aside className="panel min-h-0 overflow-y-auto rounded-xl p-4">
-          <div className="space-y-5">
-            <ProjectManager />
-            <WallSettingsPanel />
-            <MappingSettingsPanel />
-            <ColorLegend />
+          <div className="space-y-3">
+            <CollapsiblePanel title="Project Files" description="New, open, export JSON" defaultOpen>
+              <ProjectManager />
+            </CollapsiblePanel>
+            <CollapsiblePanel title="Wall & Modules" description="Dimensions, pixels, calculated layout" defaultOpen>
+              <WallSettingsPanel />
+            </CollapsiblePanel>
+            <CollapsiblePanel title="Mapping, Cabinets & Power" description="Signal routes, DC loops, layers">
+              <MappingSettingsPanel />
+            </CollapsiblePanel>
+            <CollapsiblePanel title="Color Legend" description="Port and status colors">
+              <ColorLegend />
+            </CollapsiblePanel>
           </div>
         </aside>
         <section className="min-h-0">

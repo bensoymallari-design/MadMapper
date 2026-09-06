@@ -189,7 +189,7 @@ function drawPowerLoops(
 
   cabinets.forEach((cabinet) => {
     const count = power.cabinetSupplies[cabinet.id] ?? power.defaultSuppliesPerCabinet;
-    if (count <= 0) return;
+    if (count <= 1) return;
     const badgeX = x + (cabinet.x + cabinet.width) * scale - 13;
     const badgeY = y + cabinet.y * scale + 2;
     doc.setFillColor(124, 45, 18);
@@ -227,7 +227,7 @@ function drawPowerLoops(
     routeCabinets.forEach((cabinet, index) => {
       if (!cabinet) return;
       const markerX = x + (cabinet.x + cabinet.width / 2) * scale;
-      const markerY = y + (cabinet.y + cabinet.height * 0.72) * scale;
+      const markerY = y + (cabinet.y + cabinet.height * 0.72) * scale - 4;
       doc.setDrawColor(255, 247, 237);
       doc.rect(markerX - 2.7, markerY - 2, 5.4, 4, "FD");
       doc.setTextColor(255, 255, 255);
@@ -241,12 +241,12 @@ function drawPowerLoops(
       doc.setTextColor(255, 247, 237);
       doc.setFontSize(5);
       if (first) {
-        doc.text(route.sourceLabel, x + (first.x + first.width / 2) * scale, y + (first.y + first.height * 0.72) * scale - 5, {
+        doc.text(route.sourceLabel, x + (first.x + first.width / 2) * scale, y + (first.y + first.height * 0.72) * scale - 9, {
           align: "center"
         });
       }
       if (last && last !== first) {
-        doc.text(route.endLabel, x + (last.x + last.width / 2) * scale, y + (last.y + last.height * 0.72) * scale + 7, {
+        doc.text(route.endLabel, x + (last.x + last.width / 2) * scale, y + (last.y + last.height * 0.72) * scale + 9, {
           align: "center"
         });
       }

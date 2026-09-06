@@ -465,20 +465,23 @@ function drawPowerSupplyBadges(
 ) {
   cabinets.forEach((cabinet) => {
     const count = cabinetSupplies[cabinet.id] ?? defaultSuppliesPerCabinet;
+    const isSelected = selectedPowerCabinetId === cabinet.id;
     if (count <= 0) return;
-    const x = cabinet.x + Math.max(24 / zoom, 24);
-    const y = cabinet.y + Math.max(34 / zoom, 34);
-    const width = Math.max(185 / zoom, 185);
-    const height = Math.max(54 / zoom, 54);
+    if (count === 1 && !isSelected) return;
+
+    const x = cabinet.x + Math.max(14 / zoom, 14);
+    const y = cabinet.y + Math.max(14 / zoom, 14);
+    const width = Math.max(76 / zoom, 76);
+    const height = Math.max(24 / zoom, 24);
 
     ctx.save();
-    ctx.fillStyle = selectedPowerCabinetId === cabinet.id ? "rgba(249, 115, 22, 0.95)" : "rgba(120, 53, 15, 0.9)";
+    ctx.fillStyle = isSelected ? "rgba(249, 115, 22, 0.95)" : "rgba(120, 53, 15, 0.86)";
     ctx.strokeStyle = "#fed7aa";
-    ctx.lineWidth = Math.max(3 / zoom, 3);
+    ctx.lineWidth = Math.max(2 / zoom, 2);
     ctx.fillRect(x, y, width, height);
     ctx.strokeRect(x, y, width, height);
     ctx.fillStyle = "#fff7ed";
-    ctx.font = `${Math.max(30 / zoom, 30)}px ui-monospace, monospace`;
+    ctx.font = `${Math.max(13 / zoom, 13)}px ui-monospace, monospace`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(`PSU x${count}`, x + width / 2, y + height / 2);
@@ -521,16 +524,16 @@ function drawPowerLoopRoutes(
     });
 
     routeCabinets.forEach((cabinet, index) => {
-      const anchor = powerAnchor(cabinet);
+      const anchor = powerMarkerAnchor(cabinet, zoom);
       ctx.beginPath();
-      ctx.rect(anchor.x - Math.max(34 / zoom, 34), anchor.y - Math.max(34 / zoom, 34), Math.max(68 / zoom, 68), Math.max(68 / zoom, 68));
+      ctx.rect(anchor.x - Math.max(30 / zoom, 30), anchor.y - Math.max(18 / zoom, 18), Math.max(60 / zoom, 60), Math.max(36 / zoom, 36));
       ctx.fillStyle = route.color;
       ctx.fill();
       ctx.strokeStyle = "#fff7ed";
-      ctx.lineWidth = Math.max(5 / zoom, 5);
+      ctx.lineWidth = Math.max(4 / zoom, 4);
       ctx.stroke();
       ctx.fillStyle = "#ffffff";
-      ctx.font = `${Math.max(32 / zoom, 32)}px ui-monospace, monospace`;
+      ctx.font = `${Math.max(18 / zoom, 18)}px ui-monospace, monospace`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(`DC${index + 1}`, anchor.x, anchor.y);
@@ -540,12 +543,12 @@ function drawPowerLoopRoutes(
       const first = routeCabinets[0];
       const last = routeCabinets.at(-1);
       if (first) {
-        const anchor = powerAnchor(first);
-        drawRouteLabel(ctx, route.sourceLabel, anchor.x, anchor.y - Math.max(82 / zoom, 82), route.color, zoom);
+        const anchor = powerMarkerAnchor(first, zoom);
+        drawRouteLabel(ctx, route.sourceLabel, anchor.x, anchor.y - Math.max(60 / zoom, 60), route.color, zoom);
       }
       if (last && last !== first) {
-        const anchor = powerAnchor(last);
-        drawRouteLabel(ctx, route.endLabel, anchor.x, anchor.y + Math.max(92 / zoom, 92), route.color, zoom);
+        const anchor = powerMarkerAnchor(last, zoom);
+        drawRouteLabel(ctx, route.endLabel, anchor.x, anchor.y + Math.max(62 / zoom, 62), route.color, zoom);
       }
     }
 
@@ -557,6 +560,14 @@ function powerAnchor(cabinet: { x: number; y: number; width: number; height: num
   return {
     x: cabinet.x + cabinet.width / 2,
     y: cabinet.y + cabinet.height * 0.72
+  };
+}
+
+function powerMarkerAnchor(cabinet: { x: number; y: number; width: number; height: number }, zoom: number) {
+  const anchor = powerAnchor(cabinet);
+  return {
+    x: anchor.x,
+    y: anchor.y - Math.max(72 / zoom, 72)
   };
 }
 

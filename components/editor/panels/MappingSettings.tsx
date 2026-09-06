@@ -199,6 +199,24 @@ export function MappingSettingsPanel() {
             }}
           />
         </FieldGroup>
+        <div className="grid grid-cols-3 gap-2">
+          {[1, 2, 3].map((count) => (
+            <Button
+              key={count}
+              variant="ghost"
+              size="sm"
+              disabled={!selectedPowerCabinetId}
+              onClick={() => {
+                if (selectedPowerCabinetId) {
+                  setCabinetPowerSupplies(selectedPowerCabinetId, count);
+                }
+              }}
+            >
+              PSU x{count}
+            </Button>
+          ))}
+        </div>
+        {!selectedPowerCabinetId && <div className="text-xs text-slate-500">Click a cabinet with the DC Power tool to edit its PSU count.</div>}
         <div className="space-y-2">
           {power.routes.length === 0 ? (
             <div className="text-xs text-slate-500">No DC power loops yet.</div>

@@ -140,10 +140,6 @@ export function WallCanvas() {
       cabinets.forEach((cabinet) => drawCabinet(ctx, cabinet, view.zoom));
     }
 
-    if (power.enabled) {
-      drawPowerSupplyBadges(ctx, cabinets, power.cabinetSupplies, power.defaultSuppliesPerCabinet, selectedPowerCabinetId, view.zoom);
-    }
-
     if (project.display.showDataPaths && project.mapping.enabled) {
       drawDataPaths(ctx, mapped, renderModules, view.zoom);
     }
@@ -154,6 +150,7 @@ export function WallCanvas() {
 
     if (power.enabled) {
       drawPowerLoopRoutes(ctx, power.routes, cabinets, activePowerRouteId, power.showLabels, view.zoom);
+      drawPowerSupplyBadges(ctx, cabinets, power.cabinetSupplies, power.defaultSuppliesPerCabinet, selectedPowerCabinetId, view.zoom);
     }
 
     if (selectionRect) {
@@ -469,7 +466,7 @@ function drawPowerSupplyBadges(
   cabinets.forEach((cabinet) => {
     const count = cabinetSupplies[cabinet.id] ?? defaultSuppliesPerCabinet;
     if (count <= 0) return;
-    const x = cabinet.x + cabinet.width - Math.max(210 / zoom, 210);
+    const x = cabinet.x + Math.max(24 / zoom, 24);
     const y = cabinet.y + Math.max(34 / zoom, 34);
     const width = Math.max(185 / zoom, 185);
     const height = Math.max(54 / zoom, 54);

@@ -173,7 +173,8 @@ export function MappingSettingsPanel() {
         </FieldGroup>
         <div className="rounded-lg border border-orange-500/30 bg-orange-950/20 p-3 text-xs text-orange-100">
           Start a DC loop, then click cabinets in the order the low-voltage power jumps cabinet-to-cabinet. Click a cabinet in DC Power mode
-          to edit how many PSUs are mounted in that cabinet.
+          to edit how many PSUs are mounted in that cabinet. Default PSU x1 badges stay hidden to keep the module layout readable; x2 or higher
+          remains visible.
         </div>
         <div className="grid grid-cols-2 gap-2">
           <Button variant={activePowerRouteId ? "primary" : "secondary"} onClick={startPowerLoopRoute}>

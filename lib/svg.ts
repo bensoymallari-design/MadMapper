@@ -96,8 +96,8 @@ export function generateProjectSvg(project: LedWallProject) {
   const powerBadges = power.enabled
     ? cabinets
         .map((cabinet) => {
-          const count = power.cabinetSupplies[cabinet.id] ?? power.defaultSuppliesPerCabinet;
-          if (count <= 0) return "";
+          const count = Number(power.cabinetSupplies[cabinet.id] ?? power.defaultSuppliesPerCabinet);
+          if (!Number.isFinite(count) || count <= 1) return "";
           const x = margin + (cabinet.x + cabinet.width) * scale - 42;
           const y = margin + cabinet.y * scale + 8;
           return `<g><rect x="${x}" y="${y}" width="38" height="16" fill="#7c2d12" stroke="#fed7aa" stroke-width="1"/><text x="${x + 19}" y="${y + 11}" text-anchor="middle" font-size="8" fill="#fff7ed">PSU x${count}</text></g>`;
@@ -131,7 +131,7 @@ export function generateProjectSvg(project: LedWallProject) {
             .map((cabinet, index) => {
               if (!cabinet) return "";
               const x = margin + (cabinet.x + cabinet.width / 2) * scale;
-              const y = margin + (cabinet.y + cabinet.height * 0.72) * scale;
+              const y = margin + (cabinet.y + cabinet.height * 0.72) * scale - 12;
               return `<g><rect x="${x - 10}" y="${y - 8}" width="20" height="16" fill="${route.color}" stroke="#fff7ed" stroke-width="1.5"/><text x="${x}" y="${y + 3}" text-anchor="middle" font-size="7" fill="#ffffff">DC${index + 1}</text></g>`;
             })
             .join("");
@@ -139,9 +139,9 @@ export function generateProjectSvg(project: LedWallProject) {
           const last = routeCabinets.at(-1);
           const labels =
             power.showLabels && first
-              ? `<text x="${margin + (first.x + first.width / 2) * scale}" y="${margin + (first.y + first.height * 0.72) * scale - 16}" text-anchor="middle" font-size="9" fill="#fff7ed">${escapeXml(route.sourceLabel)}</text>${
+              ? `<text x="${margin + (first.x + first.width / 2) * scale}" y="${margin + (first.y + first.height * 0.72) * scale - 28}" text-anchor="middle" font-size="9" fill="#fff7ed">${escapeXml(route.sourceLabel)}</text>${
                   last && last !== first
-                    ? `<text x="${margin + (last.x + last.width / 2) * scale}" y="${margin + (last.y + last.height * 0.72) * scale + 22}" text-anchor="middle" font-size="9" fill="#fff7ed">${escapeXml(route.endLabel)}</text>`
+                    ? `<text x="${margin + (last.x + last.width / 2) * scale}" y="${margin + (last.y + last.height * 0.72) * scale + 28}" text-anchor="middle" font-size="9" fill="#fff7ed">${escapeXml(route.endLabel)}</text>`
                     : ""
                 }`
               : "";

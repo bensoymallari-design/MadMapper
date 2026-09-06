@@ -133,6 +133,7 @@ export function WallCanvas() {
         showGrid: project.display.showGrid,
         showNumbers: project.display.showNumbers,
         selectedIds: selected,
+        labelColor: project.display.moduleTextColor ?? "#e2e8f0",
         zoom: view.zoom
       });
     });
@@ -391,6 +392,7 @@ function drawReceivingCardRoutes(
     id: string;
     name: string;
     color: string;
+    labelColor?: string;
     cabinetIds: string[];
     startLabel: string;
     endLabel: string;
@@ -452,11 +454,19 @@ function drawReceivingCardRoutes(
       const last = routeCabinets.at(-1);
       if (first) {
         const center = cabinetCenter(first);
-        drawRouteLabel(ctx, route.startLabel, center.x, center.y - Math.max(70 / zoom, 70), route.color, zoom);
+        drawRouteLabel(ctx, route.startLabel, center.x, center.y - Math.max(70 / zoom, 70), route.color, route.labelColor ?? "#e0f2fe", zoom);
       }
       if (last && last !== first) {
         const center = cabinetCenter(last);
-        drawRouteLabel(ctx, `${route.endLabel} / ${route.backupLabel}`, center.x, center.y + Math.max(95 / zoom, 95), route.color, zoom);
+        drawRouteLabel(
+          ctx,
+          `${route.endLabel} / ${route.backupLabel}`,
+          center.x,
+          center.y + Math.max(95 / zoom, 95),
+          route.color,
+          route.labelColor ?? "#e0f2fe",
+          zoom
+        );
       }
     }
 
@@ -502,7 +512,7 @@ function drawPowerSupplyBadges(
 
 function drawPowerLoopRoutes(
   ctx: CanvasRenderingContext2D,
-  routes: { id: string; name: string; color: string; cabinetIds: string[]; sourceLabel: string; endLabel: string }[],
+  routes: { id: string; name: string; color: string; labelColor?: string; cabinetIds: string[]; sourceLabel: string; endLabel: string }[],
   cabinets: { id: string; x: number; y: number; width: number; height: number }[],
   activePowerRouteId: string | null,
   showLabels: boolean,
@@ -555,11 +565,11 @@ function drawPowerLoopRoutes(
       const last = routeCabinets.at(-1);
       if (first) {
         const anchor = powerMarkerAnchor(first, zoom);
-        drawRouteLabel(ctx, route.sourceLabel, anchor.x, anchor.y - Math.max(60 / zoom, 60), route.color, zoom);
+        drawRouteLabel(ctx, route.sourceLabel, anchor.x, anchor.y - Math.max(60 / zoom, 60), route.color, route.labelColor ?? "#fff7ed", zoom);
       }
       if (last && last !== first) {
         const anchor = powerMarkerAnchor(last, zoom);
-        drawRouteLabel(ctx, route.endLabel, anchor.x, anchor.y + Math.max(62 / zoom, 62), route.color, zoom);
+        drawRouteLabel(ctx, route.endLabel, anchor.x, anchor.y + Math.max(62 / zoom, 62), route.color, route.labelColor ?? "#fff7ed", zoom);
       }
     }
 
@@ -589,7 +599,15 @@ function cabinetCenter(cabinet: { x: number; y: number; width: number; height: n
   };
 }
 
-function drawRouteLabel(ctx: CanvasRenderingContext2D, label: string, x: number, y: number, color: string, zoom: number) {
+function drawRouteLabel(
+  ctx: CanvasRenderingContext2D,
+  label: string,
+  x: number,
+  y: number,
+  color: string,
+  textColor: string,
+  zoom: number
+) {
   const padding = Math.max(16 / zoom, 16);
   const height = Math.max(52 / zoom, 52);
   ctx.font = `${Math.max(38 / zoom, 38)}px ui-monospace, monospace`;
@@ -601,7 +619,7 @@ function drawRouteLabel(ctx: CanvasRenderingContext2D, label: string, x: number,
   ctx.lineWidth = Math.max(3 / zoom, 3);
   ctx.fillRect(x - width / 2, y - height / 2, width, height);
   ctx.strokeRect(x - width / 2, y - height / 2, width, height);
-  ctx.fillStyle = "#e0f2fe";
+  ctx.fillStyle = textColor;
   ctx.fillText(label, x, y);
   ctx.fillStyle = color;
 }

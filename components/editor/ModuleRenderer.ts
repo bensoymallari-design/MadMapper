@@ -4,6 +4,7 @@ export interface CanvasRenderOptions {
   showNumbers: boolean;
   showGrid: boolean;
   selectedIds: Set<string>;
+  labelColor: string;
   zoom: number;
 }
 
@@ -21,7 +22,7 @@ export function drawModule(ctx: CanvasRenderingContext2D, module: LedModule, opt
   }
 
   if (options.showNumbers && options.zoom > 0.035 && module.enabled) {
-    ctx.fillStyle = "#e2e8f0";
+    ctx.fillStyle = options.labelColor;
     ctx.font = `${Math.max(28, Math.min(module.height * 0.28, 70))}px ui-monospace, SFMono-Regular, Menlo, monospace`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";

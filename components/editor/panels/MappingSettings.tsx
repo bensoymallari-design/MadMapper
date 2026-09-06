@@ -15,6 +15,8 @@ export function MappingSettingsPanel() {
     updateRouting,
     updatePower,
     updatePortColor,
+    updateReceivingRouteLabelColor,
+    updatePowerRouteLabelColor,
     updateDisplay,
     assignMapping,
     updateCabinet,
@@ -132,13 +134,22 @@ export function MappingSettingsPanel() {
               <div key={route.id} className="rounded-lg border border-slate-800 bg-slate-950/60 p-2 text-xs text-slate-300">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-slate-100">{route.name}</span>
-                  <input
-                    title={`Change Port ${route.port} color`}
-                    type="color"
-                    value={route.color}
-                    onChange={(event) => updatePortColor(route.port, event.target.value)}
-                    className="h-5 w-8 cursor-pointer rounded border border-white/20 bg-transparent p-0"
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      title={`Change Port ${route.port} line color`}
+                      type="color"
+                      value={route.color}
+                      onChange={(event) => updatePortColor(route.port, event.target.value)}
+                      className="h-5 w-8 cursor-pointer rounded border border-white/20 bg-transparent p-0"
+                    />
+                    <input
+                      title={`Change ${route.name} label text color`}
+                      type="color"
+                      value={route.labelColor ?? "#e0f2fe"}
+                      onChange={(event) => updateReceivingRouteLabelColor(route.id, event.target.value)}
+                      className="h-5 w-8 cursor-pointer rounded border border-white/20 bg-transparent p-0"
+                    />
+                  </div>
                 </div>
                 <div className="mt-1 text-slate-500">
                   Port {route.port} - {route.cabinetIds.length} cabinet{route.cabinetIds.length === 1 ? "" : "s"}
@@ -235,7 +246,16 @@ export function MappingSettingsPanel() {
               <div key={route.id} className="rounded-lg border border-orange-900/60 bg-orange-950/20 p-2 text-xs text-orange-100">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold">{route.name}</span>
-                  <span className="h-3 w-3 rounded-full border border-white/30" style={{ backgroundColor: route.color }} />
+                  <div className="flex items-center gap-2">
+                    <span className="h-3 w-3 rounded-full border border-white/30" style={{ backgroundColor: route.color }} />
+                    <input
+                      title={`Change ${route.name} label text color`}
+                      type="color"
+                      value={route.labelColor ?? "#fff7ed"}
+                      onChange={(event) => updatePowerRouteLabelColor(route.id, event.target.value)}
+                      className="h-5 w-8 cursor-pointer rounded border border-white/20 bg-transparent p-0"
+                    />
+                  </div>
                 </div>
                 <div className="mt-1 text-orange-200/70">
                   {route.cabinetIds.length} cabinet{route.cabinetIds.length === 1 ? "" : "s"} in DC loop
@@ -292,6 +312,13 @@ export function MappingSettingsPanel() {
             />
           </label>
         ))}
+        <FieldGroup label="Module text color">
+          <TextInput
+            type="color"
+            value={project.display.moduleTextColor ?? "#e2e8f0"}
+            onChange={(event) => updateDisplay({ moduleTextColor: event.target.value })}
+          />
+        </FieldGroup>
       </div>
     </section>
   );

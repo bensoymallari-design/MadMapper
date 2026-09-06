@@ -96,6 +96,7 @@ export interface PowerLoopRoute {
 export interface PowerSettings {
   enabled: boolean;
   showLabels: boolean;
+  showSupplyBadges: boolean;
   defaultSuppliesPerCabinet: number;
   cabinetSupplies: Record<string, number>;
   routes: PowerLoopRoute[];

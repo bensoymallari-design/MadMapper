@@ -31,6 +31,7 @@ export function MappingSettingsPanel() {
   const power = project.power ?? {
     enabled: false,
     showLabels: true,
+    showSupplyBadges: true,
     defaultSuppliesPerCabinet: 1,
     cabinetSupplies: {},
     routes: []
@@ -163,6 +164,14 @@ export function MappingSettingsPanel() {
           Power labels
           <input type="checkbox" checked={power.showLabels} onChange={(event) => updatePower({ showLabels: event.target.checked })} />
         </label>
+        <label className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-200">
+          Show PSU count badges
+          <input
+            type="checkbox"
+            checked={power.showSupplyBadges}
+            onChange={(event) => updatePower({ showSupplyBadges: event.target.checked })}
+          />
+        </label>
         <FieldGroup label="Default PSU per cabinet">
           <TextInput
             type="number"
@@ -173,8 +182,8 @@ export function MappingSettingsPanel() {
         </FieldGroup>
         <div className="rounded-lg border border-orange-500/30 bg-orange-950/20 p-3 text-xs text-orange-100">
           Start a DC loop, then click cabinets in the order the low-voltage power jumps cabinet-to-cabinet. Click a cabinet in DC Power mode
-          to edit how many PSUs are mounted in that cabinet. Default PSU x1 badges stay hidden to keep the module layout readable; x2 or higher
-          remains visible.
+          to edit how many PSUs are mounted in that cabinet. Use Show PSU count badges to show or hide PSU x1/x2/x3 labels while building the
+          layout.
         </div>
         <div className="grid grid-cols-2 gap-2">
           <Button variant={activePowerRouteId ? "primary" : "secondary"} onClick={startPowerLoopRoute}>

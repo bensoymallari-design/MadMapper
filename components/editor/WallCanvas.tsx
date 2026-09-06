@@ -54,6 +54,7 @@ export function WallCanvas() {
   const power = project.power ?? {
     enabled: false,
     showLabels: true,
+    showSupplyBadges: true,
     defaultSuppliesPerCabinet: 1,
     cabinetSupplies: {},
     routes: []
@@ -150,7 +151,15 @@ export function WallCanvas() {
 
     if (power.enabled) {
       drawPowerLoopRoutes(ctx, power.routes, cabinets, activePowerRouteId, power.showLabels, view.zoom);
-      drawPowerSupplyBadges(ctx, cabinets, power.cabinetSupplies, power.defaultSuppliesPerCabinet, selectedPowerCabinetId, view.zoom);
+      drawPowerSupplyBadges(
+        ctx,
+        cabinets,
+        power.cabinetSupplies,
+        power.defaultSuppliesPerCabinet,
+        selectedPowerCabinetId,
+        power.showSupplyBadges,
+        view.zoom
+      );
     }
 
     if (selectionRect) {
@@ -461,13 +470,15 @@ function drawPowerSupplyBadges(
   cabinetSupplies: Record<string, number>,
   defaultSuppliesPerCabinet: number,
   selectedPowerCabinetId: string | null,
+  showSupplyBadges: boolean,
   zoom: number
 ) {
+  if (!showSupplyBadges) return;
+
   cabinets.forEach((cabinet) => {
     const count = Number(cabinetSupplies[cabinet.id] ?? defaultSuppliesPerCabinet);
     const isSelected = selectedPowerCabinetId === cabinet.id;
     if (!Number.isFinite(count) || count <= 0) return;
-    if (count === 1 && !isSelected) return;
 
     const x = cabinet.x + Math.max(14 / zoom, 14);
     const y = cabinet.y + Math.max(14 / zoom, 14);

@@ -78,6 +78,7 @@ export function createSampleProject(): LedWallProject {
     power: {
       enabled: true,
       showLabels: true,
+      showSupplyBadges: true,
       defaultSuppliesPerCabinet: 1,
       cabinetSupplies: {},
       routes: []
@@ -173,12 +174,14 @@ export function parseProject(json: string): LedWallProject {
       showLabels: true,
       routes: []
     },
-    power: parsed.power ?? {
+    power: {
       enabled: true,
       showLabels: true,
+      showSupplyBadges: true,
       defaultSuppliesPerCabinet: 1,
       cabinetSupplies: {},
-      routes: []
+      routes: [],
+      ...parsed.power
     }
   };
 }

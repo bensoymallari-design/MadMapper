@@ -88,16 +88,17 @@ export function generateProjectSvg(project: LedWallProject) {
   const power = project.power ?? {
     enabled: false,
     showLabels: true,
+    showSupplyBadges: true,
     defaultSuppliesPerCabinet: 1,
     cabinetSupplies: {},
     routes: []
   };
 
-  const powerBadges = power.enabled
+  const powerBadges = power.enabled && power.showSupplyBadges
     ? cabinets
         .map((cabinet) => {
           const count = Number(power.cabinetSupplies[cabinet.id] ?? power.defaultSuppliesPerCabinet);
-          if (!Number.isFinite(count) || count <= 1) return "";
+          if (!Number.isFinite(count) || count <= 0) return "";
           const x = margin + (cabinet.x + cabinet.width) * scale - 42;
           const y = margin + cabinet.y * scale + 8;
           return `<g><rect x="${x}" y="${y}" width="38" height="16" fill="#7c2d12" stroke="#fed7aa" stroke-width="1"/><text x="${x + 19}" y="${y + 11}" text-anchor="middle" font-size="8" fill="#fff7ed">PSU x${count}</text></g>`;

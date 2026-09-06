@@ -495,6 +495,7 @@ function getDefaultPower(): PowerSettings {
   return {
     enabled: true,
     showLabels: true,
+    showSupplyBadges: true,
     defaultSuppliesPerCabinet: 1,
     cabinetSupplies: {},
     routes: []

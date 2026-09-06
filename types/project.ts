@@ -72,6 +72,7 @@ export interface ReceivingCardRoute {
   name: string;
   port: number;
   color: string;
+  labelColor: string;
   cabinetIds: string[];
   startLabel: string;
   endLabel: string;
@@ -88,6 +89,7 @@ export interface PowerLoopRoute {
   id: string;
   name: string;
   color: string;
+  labelColor: string;
   cabinetIds: string[];
   sourceLabel: string;
   endLabel: string;
@@ -105,6 +107,7 @@ export interface PowerSettings {
 export interface DisplaySettings {
   showGrid: boolean;
   showNumbers: boolean;
+  moduleTextColor: string;
   showCabinets: boolean;
   showDataPaths: boolean;
   showDimensions: boolean;

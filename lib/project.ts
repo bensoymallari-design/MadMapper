@@ -86,6 +86,7 @@ export function createSampleProject(): LedWallProject {
     display: {
       showGrid: true,
       showNumbers: true,
+      moduleTextColor: "#e2e8f0",
       showCabinets: true,
       showDataPaths: false,
       showDimensions: true,
@@ -168,12 +169,29 @@ export function parseProject(json: string): LedWallProject {
     throw new Error("Invalid LED wall project file.");
   }
   const parsedPower = (parsed as { power?: Partial<LedWallProject["power"]> }).power;
+  const parsedDisplay = (parsed as { display?: Partial<LedWallProject["display"]> }).display;
+  const parsedRouting = (parsed as { routing?: Partial<LedWallProject["routing"]> }).routing;
   return {
     ...parsed,
-    routing: parsed.routing ?? {
+    display: {
+      showGrid: true,
+      showNumbers: true,
+      moduleTextColor: "#e2e8f0",
+      showCabinets: true,
+      showDataPaths: false,
+      showDimensions: true,
+      showCoordinates: false,
+      ...parsedDisplay
+    },
+    routing: {
       enabled: true,
       showLabels: true,
-      routes: []
+      routes: [],
+      ...parsedRouting,
+      routes: (parsedRouting?.routes ?? []).map((route) => ({
+        ...route,
+        labelColor: route.labelColor ?? "#e0f2fe"
+      }))
     },
     power: {
       enabled: true,
@@ -182,7 +200,11 @@ export function parseProject(json: string): LedWallProject {
       defaultSuppliesPerCabinet: 1,
       cabinetSupplies: {},
       routes: [],
-      ...parsedPower
+      ...parsedPower,
+      routes: (parsedPower?.routes ?? []).map((route) => ({
+        ...route,
+        labelColor: route.labelColor ?? "#fff7ed"
+      }))
     }
   };
 }

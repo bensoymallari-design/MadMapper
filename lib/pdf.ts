@@ -82,9 +82,10 @@ function drawDiagram(doc: jsPDF, project: LedWallProject, x: number, y: number, 
     doc.setDrawColor(30, 41, 59);
     doc.rect(x + module.x * scale, y + module.y * scale, module.width * scale, module.height * scale, "FD");
     if (project.display.showNumbers && module.width * scale > 5 && module.height * scale > 3) {
-      doc.setTextColor(226, 232, 240);
+      const textRgb = hexToRgb(project.display.moduleTextColor ?? "#e2e8f0");
+      doc.setTextColor(textRgb.r, textRgb.g, textRgb.b);
       doc.setFontSize(Math.max(3, Math.min(6, module.height * scale * 0.35)));
-      doc.text(module.number, x + (module.x + module.width / 2) * scale, y + (module.y + module.height / 2) * scale, {
+      doc.text(module.customLabel || module.number, x + (module.x + module.width / 2) * scale, y + (module.y + module.height / 2) * scale, {
         align: "center",
         baseline: "middle"
       });
@@ -157,7 +158,8 @@ function drawReceivingCardRoutes(
     if (project.routing.showLabels) {
       const first = routeCabinets[0];
       const last = routeCabinets.at(-1);
-      doc.setTextColor(224, 242, 254);
+      const labelRgb = hexToRgb(route.labelColor ?? "#e0f2fe");
+      doc.setTextColor(labelRgb.r, labelRgb.g, labelRgb.b);
       doc.setFontSize(6);
       if (first) {
         doc.text(route.startLabel, x + (first.x + first.width / 2) * scale, y + (first.y + first.height / 2) * scale - 4, {
@@ -240,7 +242,8 @@ function drawPowerLoops(
     if (power.showLabels) {
       const first = routeCabinets[0];
       const last = routeCabinets.at(-1);
-      doc.setTextColor(255, 247, 237);
+      const labelRgb = hexToRgb(route.labelColor ?? "#fff7ed");
+      doc.setTextColor(labelRgb.r, labelRgb.g, labelRgb.b);
       doc.setFontSize(5);
       if (first) {
         doc.text(route.sourceLabel, x + (first.x + first.width / 2) * scale, y + (first.y + first.height * 0.72) * scale - 9, {

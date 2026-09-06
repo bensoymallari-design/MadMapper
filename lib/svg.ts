@@ -27,7 +27,7 @@ export function generateProjectSvg(project: LedWallProject) {
       const moduleHeight = module.height * scale;
       const fill = module.enabled ? module.color : "#111827";
       const opacity = module.enabled ? "0.72" : "0.32";
-      return `<g><rect x="${x}" y="${y}" width="${moduleWidth}" height="${moduleHeight}" fill="${fill}" opacity="${opacity}" stroke="#1e293b" stroke-width="0.5"/><text x="${x + moduleWidth / 2}" y="${y + moduleHeight / 2 + 3}" text-anchor="middle" font-size="6" fill="#e2e8f0">${escapeXml(module.number)}</text></g>`;
+      return `<g><rect x="${x}" y="${y}" width="${moduleWidth}" height="${moduleHeight}" fill="${fill}" opacity="${opacity}" stroke="#1e293b" stroke-width="0.5"/><text x="${x + moduleWidth / 2}" y="${y + moduleHeight / 2 + 3}" text-anchor="middle" font-size="6" fill="${project.display.moduleTextColor ?? "#e2e8f0"}">${escapeXml(module.customLabel || module.number)}</text></g>`;
     })
     .join("");
 
@@ -74,9 +74,9 @@ export function generateProjectSvg(project: LedWallProject) {
           const last = routeCabinets.at(-1);
           const labels =
             project.routing.showLabels && first
-              ? `<text x="${margin + (first.x + first.width / 2) * scale}" y="${margin + (first.y + first.height / 2) * scale - 14}" text-anchor="middle" font-size="9" fill="#e0f2fe">${escapeXml(route.startLabel)}</text>${
+              ? `<text x="${margin + (first.x + first.width / 2) * scale}" y="${margin + (first.y + first.height / 2) * scale - 14}" text-anchor="middle" font-size="9" fill="${route.labelColor ?? "#e0f2fe"}">${escapeXml(route.startLabel)}</text>${
                   last && last !== first
-                    ? `<text x="${margin + (last.x + last.width / 2) * scale}" y="${margin + (last.y + last.height / 2) * scale + 20}" text-anchor="middle" font-size="9" fill="#e0f2fe">${escapeXml(`${route.endLabel} / ${route.backupLabel}`)}</text>`
+                    ? `<text x="${margin + (last.x + last.width / 2) * scale}" y="${margin + (last.y + last.height / 2) * scale + 20}" text-anchor="middle" font-size="9" fill="${route.labelColor ?? "#e0f2fe"}">${escapeXml(`${route.endLabel} / ${route.backupLabel}`)}</text>`
                     : ""
                 }`
               : "";
@@ -140,9 +140,9 @@ export function generateProjectSvg(project: LedWallProject) {
           const last = routeCabinets.at(-1);
           const labels =
             power.showLabels && first
-              ? `<text x="${margin + (first.x + first.width / 2) * scale}" y="${margin + (first.y + first.height * 0.72) * scale - 28}" text-anchor="middle" font-size="9" fill="#fff7ed">${escapeXml(route.sourceLabel)}</text>${
+              ? `<text x="${margin + (first.x + first.width / 2) * scale}" y="${margin + (first.y + first.height * 0.72) * scale - 28}" text-anchor="middle" font-size="9" fill="${route.labelColor ?? "#fff7ed"}">${escapeXml(route.sourceLabel)}</text>${
                   last && last !== first
-                    ? `<text x="${margin + (last.x + last.width / 2) * scale}" y="${margin + (last.y + last.height * 0.72) * scale + 28}" text-anchor="middle" font-size="9" fill="#fff7ed">${escapeXml(route.endLabel)}</text>`
+                    ? `<text x="${margin + (last.x + last.width / 2) * scale}" y="${margin + (last.y + last.height * 0.72) * scale + 28}" text-anchor="middle" font-size="9" fill="${route.labelColor ?? "#fff7ed"}">${escapeXml(route.endLabel)}</text>`
                     : ""
                 }`
               : "";

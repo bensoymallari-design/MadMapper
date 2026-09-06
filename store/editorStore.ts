@@ -46,6 +46,8 @@ interface EditorState {
   setActiveTool: (tool: ToolMode) => void;
   setSelectedColor: (color: string) => void;
   updatePortColor: (port: number, color: string) => void;
+  updateReceivingRouteLabelColor: (routeId: string, color: string) => void;
+  updatePowerRouteLabelColor: (routeId: string, color: string) => void;
   setView: (view: Partial<ViewState>) => void;
   selectModule: (id: string, append?: boolean) => void;
   selectModules: (ids: string[], append?: boolean) => void;
@@ -54,6 +56,7 @@ interface EditorState {
   selectColumn: (column: number) => void;
   clearSelection: () => void;
   updateSelectedModules: (changes: Partial<Pick<LedModule, "color" | "status" | "enabled" | "port" | "customLabel">>) => void;
+  applySequentialLabelsToSelection: (prefix: string, startNumber: number, pad: number) => void;
   assignMapping: () => void;
   startReceivingCardRoute: () => void;
   addCabinetToActiveRoute: (cabinetId: string) => void;
@@ -180,6 +183,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       },
       updatedAt: new Date().toISOString()
     })),
+
+  updateReceivingRouteLabelColor: (routeId, color) =>
+    setWithHistory(set, get, (project) => ({
+      ...project,
+      routing: {
+        ...getDefaultRouting(),
+        ...project.routing,
+        routes: (project.routing?.routes ?? []).map((route) => (route.id === routeId ? { ...route, labelColor: color } : route))
+      },
+      updatedAt: new Date().toISOString()
+    })),
+
+  updatePowerRouteLabelColor: (routeId, color) =>
+    setWithHistory(set, get, (project) => ({
+      ...project,
+      power: {
+        ...getDefaultPower(),
+        ...project.power,
+        routes: (project.power?.routes ?? []).map((route) => (route.id === routeId ? { ...route, labelColor: color } : route))
+      },
+      updatedAt: new Date().toISOString()
+    })),
   setView: (view) => set((state) => ({ view: { ...state.view, ...view } })),
 
   selectModule: (id, append = false) =>
@@ -232,6 +257,29 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
     }),
 
+  applySequentialLabelsToSelection: (prefix, startNumber, pad) =>
+    setWithHistory(set, get, (project) => {
+      const selected = new Set(get().selectedModuleIds);
+      const selectedModules = project.modules
+        .filter((module) => selected.has(module.id))
+        .sort((a, b) => a.row - b.row || a.column - b.column);
+      const labelById = new Map(
+        selectedModules.map((module, index) => [
+          module.id,
+          `${prefix}${String(startNumber + index).padStart(Math.max(1, pad), "0")}`
+        ])
+      );
+
+      return {
+        ...project,
+        modules: project.modules.map((module) => ({
+          ...module,
+          customLabel: labelById.get(module.id) ?? module.customLabel
+        })),
+        updatedAt: new Date().toISOString()
+      };
+    }),
+
   assignMapping: () =>
     setWithHistory(set, get, (project) => {
       const { modules } = generatePortMapping(
@@ -267,6 +315,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             name: `Receiver Route ${nextIndex}`,
             port: nextIndex,
             color: project.legend.ports[nextIndex] ?? "#38bdf8",
+            labelColor: "#e0f2fe",
             cabinetIds: [],
             startLabel: `MAIN PORT ${nextIndex}`,
             endLabel: "END",
@@ -332,6 +381,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             id: routeId,
             name: `DC Power Loop ${nextIndex}`,
             color: "#f97316",
+            labelColor: "#fff7ed",
             cabinetIds: [],
             sourceLabel: `DC PSU SOURCE ${nextIndex}`,
             endLabel: `DC LOOP END ${nextIndex}`

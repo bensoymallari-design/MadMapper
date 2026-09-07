@@ -110,6 +110,7 @@ export interface DisplaySettings {
   showGrid: boolean;
   showNumbers: boolean;
   moduleTextColor: string;
+  rainbowGradient: boolean;
   showCabinets: boolean;
   showDataPaths: boolean;
   showDimensions: boolean;

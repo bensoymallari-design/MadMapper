@@ -1,4 +1,5 @@
 import { calculateCabinetLayout, calculateLayoutMetrics } from "@/lib/calculations";
+import { getRainbowModuleColor } from "@/lib/colors";
 import { generatePortMapping } from "@/lib/mapping";
 import type { LedWallProject } from "@/types/project";
 
@@ -25,7 +26,11 @@ export function generateProjectSvg(project: LedWallProject) {
       const y = margin + module.y * scale;
       const moduleWidth = module.width * scale;
       const moduleHeight = module.height * scale;
-      const fill = module.enabled ? module.color : "#111827";
+      const fill = module.enabled
+        ? project.display.rainbowGradient
+          ? getRainbowModuleColor(module, project.wall)
+          : module.color
+        : "#111827";
       const opacity = module.enabled ? "0.72" : "0.32";
       return `<g><rect x="${x}" y="${y}" width="${moduleWidth}" height="${moduleHeight}" fill="${fill}" opacity="${opacity}" stroke="#1e293b" stroke-width="0.5"/><text x="${x + moduleWidth / 2}" y="${y + moduleHeight / 2 + 3}" text-anchor="middle" font-size="6" fill="${project.display.moduleTextColor ?? "#e2e8f0"}">${escapeXml(module.customLabel || module.number)}</text></g>`;
     })

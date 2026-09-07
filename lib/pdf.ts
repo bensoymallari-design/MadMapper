@@ -2,6 +2,7 @@
 
 import { jsPDF } from "jspdf";
 import { calculateCabinetLayout, calculateLayoutMetrics } from "@/lib/calculations";
+import { getRainbowModuleColor } from "@/lib/colors";
 import { generatePortMapping } from "@/lib/mapping";
 import type { LedWallProject } from "@/types/project";
 
@@ -77,7 +78,8 @@ function drawDiagram(doc: jsPDF, project: LedWallProject, x: number, y: number, 
   doc.text(`${project.wall.height} ${project.wall.unit}`, x - 12, y + wallHeight / 2, { angle: 90 });
 
   modules.forEach((module) => {
-    const rgb = hexToRgb(module.enabled ? module.color : "#111827");
+    const moduleColor = project.display.rainbowGradient ? getRainbowModuleColor(module, project.wall) : module.color;
+    const rgb = hexToRgb(module.enabled ? moduleColor : "#111827");
     doc.setFillColor(rgb.r, rgb.g, rgb.b);
     doc.setDrawColor(30, 41, 59);
     doc.rect(x + module.x * scale, y + module.y * scale, module.width * scale, module.height * scale, "FD");

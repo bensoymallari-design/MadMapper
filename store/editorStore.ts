@@ -42,6 +42,9 @@ interface EditorState {
   updateModuleSettings: (settings: Partial<ModuleSettings>) => void;
   updateNumbering: (settings: Partial<NumberingSettings>) => void;
   updateCabinet: (settings: Partial<CabinetSettings>) => void;
+  createManualCabinetFromSelection: () => void;
+  deleteManualCabinet: (cabinetId: string) => void;
+  clearManualCabinets: () => void;
   updateMapping: (settings: Partial<MappingSettings>) => void;
   updateRouting: (settings: Partial<Omit<RoutingSettings, "routes">>) => void;
   updatePower: (settings: Partial<Omit<PowerSettings, "routes" | "cabinetSupplies">>) => void;
@@ -135,6 +138,70 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     setWithHistory(set, get, (project) => ({
       ...project,
       cabinet: { ...project.cabinet, ...settings },
+      updatedAt: new Date().toISOString()
+    })),
+
+  createManualCabinetFromSelection: () =>
+    setWithHistory(set, get, (project) => {
+      const selected = new Set(get().selectedModuleIds);
+      const selectedModules = project.modules.filter((module) => selected.has(module.id));
+      if (selectedModules.length === 0) return project;
+
+      const minX = Math.min(...selectedModules.map((module) => module.x));
+      const minY = Math.min(...selectedModules.map((module) => module.y));
+      const maxX = Math.max(...selectedModules.map((module) => module.x + module.width));
+      const maxY = Math.max(...selectedModules.map((module) => module.y + module.height));
+      const row = Math.min(...selectedModules.map((module) => module.row));
+      const column = Math.min(...selectedModules.map((module) => module.column));
+      const modulesWide = new Set(selectedModules.map((module) => module.column)).size;
+      const modulesHigh = new Set(selectedModules.map((module) => module.row)).size;
+      const customCabinets = project.cabinet.customCabinets ?? [];
+      const index = customCabinets.length + 1;
+
+      return {
+        ...project,
+        cabinet: {
+          ...project.cabinet,
+          enabled: true,
+          mode: "manual",
+          customCabinets: [
+            ...customCabinets,
+            {
+              id: `manual-cabinet-${Date.now()}`,
+              index,
+              row,
+              column,
+              x: minX,
+              y: minY,
+              width: maxX - minX,
+              height: maxY - minY,
+              modulesWide,
+              modulesHigh,
+              rotation: project.cabinet.rotation
+            }
+          ]
+        },
+        updatedAt: new Date().toISOString()
+      };
+    }),
+
+  deleteManualCabinet: (cabinetId) =>
+    setWithHistory(set, get, (project) => ({
+      ...project,
+      cabinet: {
+        ...project.cabinet,
+        customCabinets: (project.cabinet.customCabinets ?? []).filter((cabinet) => cabinet.id !== cabinetId)
+      },
+      updatedAt: new Date().toISOString()
+    })),
+
+  clearManualCabinets: () =>
+    setWithHistory(set, get, (project) => ({
+      ...project,
+      cabinet: {
+        ...project.cabinet,
+        customCabinets: []
+      },
       updatedAt: new Date().toISOString()
     })),
 

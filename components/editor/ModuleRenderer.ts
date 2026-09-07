@@ -21,7 +21,7 @@ export function drawModule(ctx: CanvasRenderingContext2D, module: LedModule, opt
     ctx.strokeRect(module.x, module.y, module.width, module.height);
   }
 
-  if (options.showNumbers && options.zoom > 0.035 && module.enabled) {
+  if (options.showNumbers && options.zoom > 0.035 && !disabled) {
     ctx.fillStyle = options.labelColor;
     ctx.font = `${Math.max(28, Math.min(module.height * 0.28, 70))}px ui-monospace, SFMono-Regular, Menlo, monospace`;
     ctx.textAlign = "center";

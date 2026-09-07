@@ -82,6 +82,14 @@ export function calculateCabinetLayout(
     return [];
   }
 
+  if (cabinet.mode === "manual") {
+    return (cabinet.customCabinets ?? []).map((item, index) => ({
+      ...item,
+      index: index + 1,
+      rotation: item.rotation ?? cabinet.rotation
+    }));
+  }
+
   const modulesWide = Math.max(1, Math.round(cabinet.width / module.width));
   const modulesHigh = Math.max(1, Math.round(cabinet.height / module.height));
   const { columns, rows } = calculateModuleCount(wall, module);

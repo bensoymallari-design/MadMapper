@@ -22,17 +22,21 @@ export function generateProjectSvg(project: LedWallProject) {
 
   const moduleRects = modules
     .map((module) => {
+      const disabled = !module.enabled || module.status === "unused";
       const x = margin + module.x * scale;
       const y = margin + module.y * scale;
       const moduleWidth = module.width * scale;
       const moduleHeight = module.height * scale;
-      const fill = module.enabled
+      const fill = !disabled
         ? project.display.rainbowGradient
           ? getRainbowModuleColor(module, project.wall)
           : module.color
         : "#111827";
-      const opacity = module.enabled ? "0.72" : "0.32";
-      return `<g><rect x="${x}" y="${y}" width="${moduleWidth}" height="${moduleHeight}" fill="${fill}" opacity="${opacity}" stroke="#1e293b" stroke-width="0.5"/><text x="${x + moduleWidth / 2}" y="${y + moduleHeight / 2 + 3}" text-anchor="middle" font-size="6" fill="${project.display.moduleTextColor ?? "#e2e8f0"}">${escapeXml(module.customLabel || module.number)}</text></g>`;
+      const opacity = disabled ? "0.32" : "0.72";
+      const label = disabled
+        ? ""
+        : `<text x="${x + moduleWidth / 2}" y="${y + moduleHeight / 2 + 3}" text-anchor="middle" font-size="6" fill="${project.display.moduleTextColor ?? "#e2e8f0"}">${escapeXml(module.customLabel || module.number)}</text>`;
+      return `<g><rect x="${x}" y="${y}" width="${moduleWidth}" height="${moduleHeight}" fill="${fill}" opacity="${opacity}" stroke="#1e293b" stroke-width="0.5"/>${label}</g>`;
     })
     .join("");
 

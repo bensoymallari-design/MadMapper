@@ -55,9 +55,11 @@ export interface NumberingSettings {
 
 export interface CabinetSettings {
   enabled: boolean;
+  mode: "auto" | "manual";
   width: number;
   height: number;
   rotation: 0 | 90 | 180 | 270;
+  customCabinets: Cabinet[];
 }
 
 export interface MappingSettings {

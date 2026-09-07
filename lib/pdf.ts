@@ -78,12 +78,13 @@ function drawDiagram(doc: jsPDF, project: LedWallProject, x: number, y: number, 
   doc.text(`${project.wall.height} ${project.wall.unit}`, x - 12, y + wallHeight / 2, { angle: 90 });
 
   modules.forEach((module) => {
+    const disabled = !module.enabled || module.status === "unused";
     const moduleColor = project.display.rainbowGradient ? getRainbowModuleColor(module, project.wall) : module.color;
-    const rgb = hexToRgb(module.enabled ? moduleColor : "#111827");
+    const rgb = hexToRgb(disabled ? "#111827" : moduleColor);
     doc.setFillColor(rgb.r, rgb.g, rgb.b);
     doc.setDrawColor(30, 41, 59);
     doc.rect(x + module.x * scale, y + module.y * scale, module.width * scale, module.height * scale, "FD");
-    if (project.display.showNumbers && module.width * scale > 5 && module.height * scale > 3) {
+    if (project.display.showNumbers && !disabled && module.width * scale > 5 && module.height * scale > 3) {
       const textRgb = hexToRgb(project.display.moduleTextColor ?? "#e2e8f0");
       doc.setTextColor(textRgb.r, textRgb.g, textRgb.b);
       doc.setFontSize(Math.max(3, Math.min(6, module.height * scale * 0.35)));

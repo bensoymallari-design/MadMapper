@@ -3,11 +3,20 @@
 import { useEditorStore } from "@/store/editorStore";
 
 export function ColorLegend() {
-  const { project, updatePortColor } = useEditorStore();
+  const { project, updatePortColor, updateDisplay } = useEditorStore();
 
   return (
     <section className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">
       <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Color Legend</h2>
+      <label className="mb-3 flex items-center justify-between rounded-lg border border-fuchsia-500/30 bg-fuchsia-950/20 px-3 py-2 text-sm text-fuchsia-100">
+        Rainbow gradient overlay
+        <input
+          type="checkbox"
+          checked={project.display.rainbowGradient}
+          onChange={(event) => updateDisplay({ rainbowGradient: event.target.checked })}
+        />
+      </label>
+      <p className="mb-3 text-xs text-slate-500">Toggle this for a full-spectrum wall color preview without changing saved port colors.</p>
       <div className="grid grid-cols-2 gap-3 text-xs">
         <div className="space-y-2">
           <div className="font-semibold text-slate-400">Ports</div>

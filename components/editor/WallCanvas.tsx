@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { calculateCabinetLayout, calculateLayoutMetrics } from "@/lib/calculations";
+import { getRainbowModuleColor } from "@/lib/colors";
 import { normalizeRect, rectsIntersect, type Point, type Rect } from "@/lib/geometry";
 import { generatePortMapping } from "@/lib/mapping";
 import { useEditorStore } from "@/store/editorStore";
@@ -129,7 +130,10 @@ export function WallCanvas() {
     const selected = new Set(selectedModuleIds);
     renderModules.forEach((module) => {
       if (!isVisible(module.x, module.y, module.width, module.height, view, width, height)) return;
-      drawModule(ctx, module, {
+      const displayModule = project.display.rainbowGradient
+        ? { ...module, color: getRainbowModuleColor(module, project.wall) }
+        : module;
+      drawModule(ctx, displayModule, {
         showGrid: project.display.showGrid,
         showNumbers: project.display.showNumbers,
         selectedIds: selected,

@@ -8,6 +8,7 @@ import { useEditorStore } from "@/store/editorStore";
 export function MappingSettingsPanel() {
   const {
     project,
+    selectedModuleIds,
     activeRouteId,
     activePowerRouteId,
     selectedPowerCabinetId,
@@ -20,6 +21,9 @@ export function MappingSettingsPanel() {
     updateDisplay,
     assignMapping,
     updateCabinet,
+    createManualCabinetFromSelection,
+    deleteManualCabinet,
+    clearManualCabinets,
     updateNumbering,
     startReceivingCardRoute,
     finishReceivingCardRoute,
@@ -275,12 +279,28 @@ export function MappingSettingsPanel() {
           Cabinet mode
           <input type="checkbox" checked={project.cabinet.enabled} onChange={(event) => updateCabinet({ enabled: event.target.checked })} />
         </label>
+        <FieldGroup label="Cabinet layout mode">
+          <SelectInput value={project.cabinet.mode} onChange={(event) => updateCabinet({ mode: event.target.value as typeof project.cabinet.mode })}>
+            <option value="auto">Auto grid cabinets</option>
+            <option value="manual">Manual cabinets</option>
+          </SelectInput>
+        </FieldGroup>
         <div className="grid grid-cols-2 gap-2">
           <FieldGroup label="Cabinet width">
-            <TextInput type="number" value={project.cabinet.width} onChange={(event) => updateCabinet({ width: Number(event.target.value) })} />
+            <TextInput
+              type="number"
+              disabled={project.cabinet.mode === "manual"}
+              value={project.cabinet.width}
+              onChange={(event) => updateCabinet({ width: Number(event.target.value) })}
+            />
           </FieldGroup>
           <FieldGroup label="Cabinet height">
-            <TextInput type="number" value={project.cabinet.height} onChange={(event) => updateCabinet({ height: Number(event.target.value) })} />
+            <TextInput
+              type="number"
+              disabled={project.cabinet.mode === "manual"}
+              value={project.cabinet.height}
+              onChange={(event) => updateCabinet({ height: Number(event.target.value) })}
+            />
           </FieldGroup>
         </div>
         <FieldGroup label="Cabinet rotation">
@@ -291,6 +311,35 @@ export function MappingSettingsPanel() {
             <option value={270}>270deg</option>
           </SelectInput>
         </FieldGroup>
+        <div className="rounded-lg border border-slate-700 bg-slate-950/70 p-3 text-xs text-slate-400">
+          Select any group of modules on the canvas, then create a manual cabinet from that exact area. Manual mode supports different cabinet
+          sizes in the same wall.
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Button size="sm" variant="primary" disabled={selectedModuleIds.length === 0} onClick={createManualCabinetFromSelection}>
+            Create from selection
+          </Button>
+          <Button size="sm" variant="danger" disabled={(project.cabinet.customCabinets ?? []).length === 0} onClick={clearManualCabinets}>
+            Clear manual
+          </Button>
+        </div>
+        {(project.cabinet.customCabinets ?? []).length > 0 && (
+          <div className="space-y-2">
+            {(project.cabinet.customCabinets ?? []).map((cabinet, index) => (
+              <div key={cabinet.id} className="rounded-lg border border-slate-800 bg-slate-950/60 p-2 text-xs text-slate-300">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-slate-100">Manual Cabinet {index + 1}</span>
+                  <Button size="sm" variant="ghost" onClick={() => deleteManualCabinet(cabinet.id)}>
+                    Delete
+                  </Button>
+                </div>
+                <div className="mt-1 text-slate-500">
+                  {cabinet.width} x {cabinet.height} {project.wall.unit} - {cabinet.modulesWide} x {cabinet.modulesHigh} modules
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="space-y-2">

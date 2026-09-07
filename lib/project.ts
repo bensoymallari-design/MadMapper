@@ -58,9 +58,11 @@ export function createSampleProject(): LedWallProject {
     numbering: defaultNumbering,
     cabinet: {
       enabled: true,
+      mode: "auto",
       width: 1440,
       height: 640,
-      rotation: 0
+      rotation: 0,
+      customCabinets: []
     },
     mapping: {
       enabled: false,
@@ -172,8 +174,18 @@ export function parseProject(json: string): LedWallProject {
   const parsedPower = (parsed as { power?: Partial<LedWallProject["power"]> }).power;
   const parsedDisplay = (parsed as { display?: Partial<LedWallProject["display"]> }).display;
   const parsedRouting = (parsed as { routing?: Partial<LedWallProject["routing"]> }).routing;
+  const parsedCabinet = (parsed as { cabinet?: Partial<LedWallProject["cabinet"]> }).cabinet;
   return {
     ...parsed,
+    cabinet: {
+      enabled: true,
+      mode: "auto",
+      width: 1440,
+      height: 640,
+      rotation: 0,
+      customCabinets: [],
+      ...parsedCabinet
+    },
     display: {
       showGrid: true,
       showNumbers: true,

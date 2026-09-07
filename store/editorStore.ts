@@ -1,10 +1,13 @@
 "use client";
 
 import { create } from "zustand";
+import { calculateCabinetLayout } from "@/lib/calculations";
+import { buildLabel, findCabinetForModule, getModulesInCabinet, orderModulesForCabinet, parseLabelRange } from "@/lib/labeling";
 import { generatePortMapping } from "@/lib/mapping";
 import { createSampleProject, parseProject, regenerateModuleGeometry, serializeProject } from "@/lib/project";
 import type {
   CabinetSettings,
+  CabinetSequenceDirection,
   DisplaySettings,
   LedModule,
   LedWallProject,
@@ -57,6 +60,8 @@ interface EditorState {
   clearSelection: () => void;
   updateSelectedModules: (changes: Partial<Pick<LedModule, "color" | "status" | "enabled" | "port" | "customLabel">>) => void;
   applySequentialLabelsToSelection: (prefix: string, startNumber: number, pad: number) => void;
+  selectCurrentCabinetModules: () => void;
+  applyCabinetSequenceLabels: (rangeInput: string, direction: CabinetSequenceDirection, scope: "currentCabinet" | "allCabinets") => void;
   assignMapping: () => void;
   startReceivingCardRoute: () => void;
   addCabinetToActiveRoute: (cabinetId: string) => void;
@@ -269,6 +274,49 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           `${prefix}${String(startNumber + index).padStart(Math.max(1, pad), "0")}`
         ])
       );
+
+      return {
+        ...project,
+        modules: project.modules.map((module) => ({
+          ...module,
+          customLabel: labelById.get(module.id) ?? module.customLabel
+        })),
+        updatedAt: new Date().toISOString()
+      };
+    }),
+
+  selectCurrentCabinetModules: () =>
+    set((state) => {
+      const cabinets = calculateCabinetLayout(state.project.wall, state.project.module, state.project.cabinet);
+      const selected = new Set(state.selectedModuleIds);
+      const firstSelected = state.project.modules.find((module) => selected.has(module.id));
+      const cabinet = findCabinetForModule(cabinets, firstSelected);
+      if (!cabinet) return state;
+
+      return {
+        selectedModuleIds: getModulesInCabinet(cabinet, state.project.modules).map((module) => module.id)
+      };
+    }),
+
+  applyCabinetSequenceLabels: (rangeInput, direction, scope) =>
+    setWithHistory(set, get, (project) => {
+      const range = parseLabelRange(rangeInput);
+      const cabinets = calculateCabinetLayout(project.wall, project.module, project.cabinet);
+      const selected = new Set(get().selectedModuleIds);
+      const firstSelected = project.modules.find((module) => selected.has(module.id));
+      const currentCabinet = findCabinetForModule(cabinets, firstSelected);
+      const targetCabinets = scope === "allCabinets" ? cabinets : currentCabinet ? [currentCabinet] : [];
+
+      if (targetCabinets.length === 0) return project;
+
+      const labelById = new Map<string, string>();
+      targetCabinets.forEach((cabinet) => {
+        const cabinetModules = orderModulesForCabinet(getModulesInCabinet(cabinet, project.modules), direction);
+        cabinetModules.forEach((module, index) => {
+          const label = buildLabel(range, index);
+          if (label) labelById.set(module.id, label);
+        });
+      });
 
       return {
         ...project,

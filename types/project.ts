@@ -14,6 +14,8 @@ export type NumberingMode =
 
 export type StartingCorner = "topLeft" | "topRight" | "bottomLeft" | "bottomRight";
 
+export type CabinetSequenceDirection = "leftToRight" | "rightToLeft" | "topToBottom" | "bottomToTop";
+
 export type ToolMode =
   | "select"
   | "pan"

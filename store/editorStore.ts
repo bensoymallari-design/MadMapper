@@ -658,9 +658,9 @@ function getDefaultRouting(): RoutingSettings {
 
 function getDefaultPower(): PowerSettings {
   return {
-    enabled: true,
+    enabled: false,
     showLabels: true,
-    showSupplyBadges: true,
+    showSupplyBadges: false,
     defaultSuppliesPerCabinet: 1,
     cabinetSupplies: {},
     routes: []

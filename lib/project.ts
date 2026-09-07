@@ -41,26 +41,26 @@ export const defaultNumbering: NumberingSettings = {
 export function createSampleProject(): LedWallProject {
   const project: LedWallProject = {
     version: 1,
-    projectName: "7.2m LED Wall",
+    projectName: "Untitled LED Wall",
     wall: {
-      width: 7200,
-      height: 7200,
+      width: 0,
+      height: 0,
       unit: "mm",
       orientation: "landscape",
       rotation: 0
     },
     module: {
-      width: 360,
-      height: 160,
-      pixelWidth: 192,
-      pixelHeight: 86
+      width: 0,
+      height: 0,
+      pixelWidth: 0,
+      pixelHeight: 0
     },
     numbering: defaultNumbering,
     cabinet: {
       enabled: true,
       mode: "auto",
-      width: 1440,
-      height: 640,
+      width: 0,
+      height: 0,
       rotation: 0,
       customCabinets: []
     },
@@ -78,9 +78,9 @@ export function createSampleProject(): LedWallProject {
       routes: []
     },
     power: {
-      enabled: true,
+      enabled: false,
       showLabels: true,
-      showSupplyBadges: true,
+      showSupplyBadges: false,
       defaultSuppliesPerCabinet: 1,
       cabinetSupplies: {},
       routes: []
@@ -207,9 +207,9 @@ export function parseProject(json: string): LedWallProject {
       }))
     },
     power: {
-      enabled: true,
+      enabled: false,
       showLabels: true,
-      showSupplyBadges: true,
+      showSupplyBadges: false,
       defaultSuppliesPerCabinet: 1,
       cabinetSupplies: {},
       ...parsedPower,

@@ -11,10 +11,12 @@ import { WallCanvas } from "@/components/editor/WallCanvas";
 import { MappingSettingsPanel } from "@/components/editor/panels/MappingSettings";
 import { ModuleSettingsPanel } from "@/components/editor/panels/ModuleSettings";
 import { WallSettingsPanel } from "@/components/editor/panels/WallSettings";
+import { QuickStartDialog } from "@/components/editor/QuickStartDialog";
 import { useEditorStore } from "@/store/editorStore";
 
 export function WallEditor() {
   const [exportOpen, setExportOpen] = useState(false);
+  const [quickStartOpen, setQuickStartOpen] = useState(true);
   const importRef = useRef<HTMLInputElement | null>(null);
   const editorRef = useRef<HTMLElement | null>(null);
   const {
@@ -122,6 +124,7 @@ export function WallEditor() {
       </div>
       <StatusBar />
       <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />
+      <QuickStartDialog open={quickStartOpen} onClose={() => setQuickStartOpen(false)} />
       <input
         ref={importRef}
         type="file"

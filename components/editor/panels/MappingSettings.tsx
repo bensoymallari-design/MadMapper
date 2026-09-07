@@ -37,7 +37,7 @@ export function MappingSettingsPanel() {
   const power = project.power ?? {
     enabled: false,
     showLabels: true,
-    showSupplyBadges: true,
+    showSupplyBadges: false,
     defaultSuppliesPerCabinet: 1,
     cabinetSupplies: {},
     routes: []

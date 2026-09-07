@@ -6,7 +6,7 @@ import { useEditorStore } from "@/store/editorStore";
 import { FieldGroup, SelectInput, TextInput } from "@/components/ui/Field";
 
 export function WallSettingsPanel() {
-  const { project, setProjectName, updateWall, updateModuleSettings } = useEditorStore();
+  const { project, setProjectName, updateWall, updateModuleSettings, updateCabinet } = useEditorStore();
   const metrics = calculateLayoutMetrics(project.wall, project.module, project.modules);
   const warnings = validateDimensions(project.wall, project.module);
 
@@ -17,16 +17,24 @@ export function WallSettingsPanel() {
         <TextInput value={project.projectName} onChange={(event) => setProjectName(event.target.value)} />
       </FieldGroup>
 
-      <PanelTitle title="Wall Settings" />
+      <PanelTitle title="1. Module Size" />
       <div className="grid grid-cols-2 gap-3">
-        <FieldGroup label="Width">
-          <NumberInput value={project.wall.width} onChange={(value) => updateWall({ width: value })} />
+        <FieldGroup label="Module width">
+          <NumberInput value={project.module.width} onChange={(value) => updateModuleSettings({ width: value })} />
         </FieldGroup>
-        <FieldGroup label="Height">
-          <NumberInput value={project.wall.height} onChange={(value) => updateWall({ height: value })} />
+        <FieldGroup label="Module height">
+          <NumberInput value={project.module.height} onChange={(value) => updateModuleSettings({ height: value })} />
         </FieldGroup>
       </div>
+
+      <PanelTitle title="2. Wall Size" />
       <div className="grid grid-cols-2 gap-3">
+        <FieldGroup label="Wall width">
+          <NumberInput value={project.wall.width} onChange={(value) => updateWall({ width: value })} />
+        </FieldGroup>
+        <FieldGroup label="Wall height">
+          <NumberInput value={project.wall.height} onChange={(value) => updateWall({ height: value })} />
+        </FieldGroup>
         <FieldGroup label="Unit">
           <SelectInput value={project.wall.unit} onChange={(event) => updateWall({ unit: event.target.value as typeof project.wall.unit })}>
             <option value="mm">mm</option>
@@ -44,14 +52,18 @@ export function WallSettingsPanel() {
         </FieldGroup>
       </div>
 
-      <PanelTitle title="Module" />
+      <PanelTitle title="3. Cabinet Size" />
       <div className="grid grid-cols-2 gap-3">
-        <FieldGroup label="Module width">
-          <NumberInput value={project.module.width} onChange={(value) => updateModuleSettings({ width: value })} />
+        <FieldGroup label="Cabinet width">
+          <NumberInput value={project.cabinet.width} onChange={(value) => updateCabinet({ width: value })} />
         </FieldGroup>
-        <FieldGroup label="Module height">
-          <NumberInput value={project.module.height} onChange={(value) => updateModuleSettings({ height: value })} />
+        <FieldGroup label="Cabinet height">
+          <NumberInput value={project.cabinet.height} onChange={(value) => updateCabinet({ height: value })} />
         </FieldGroup>
+      </div>
+
+      <PanelTitle title="4. Pixel Resolution" />
+      <div className="grid grid-cols-2 gap-3">
         <FieldGroup label="Pixel width">
           <NumberInput value={project.module.pixelWidth} onChange={(value) => updateModuleSettings({ pixelWidth: value })} />
         </FieldGroup>

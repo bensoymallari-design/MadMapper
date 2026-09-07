@@ -2,19 +2,12 @@
 
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { QuickSetupForm } from "@/components/editor/QuickSetupForm";
 
 interface QuickStartDialogProps {
   open: boolean;
   onClose: () => void;
 }
-
-const steps = [
-  "Enter module physical size",
-  "Enter wall width and height",
-  "Enter cabinet size",
-  "Enter module pixel width and height",
-  "Fit the wall, then start mapping cabinets, ports, and power"
-];
 
 export function QuickStartDialog({ open, onClose }: QuickStartDialogProps) {
   if (!open) return null;
@@ -32,19 +25,12 @@ export function QuickStartDialog({ open, onClose }: QuickStartDialogProps) {
           </Button>
         </div>
 
-        <ol className="space-y-3">
-          {steps.map((step, index) => (
-            <li key={step} className="flex gap-3 rounded-xl border border-slate-800 bg-slate-950/70 p-3">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-sky-400/50 bg-sky-500/15 text-xs font-semibold text-sky-100">
-                {index + 1}
-              </span>
-              <span className="pt-1 text-sm text-slate-200">{step}</span>
-            </li>
-          ))}
-        </ol>
+        <div className="max-h-[65vh] overflow-y-auto pr-1">
+          <QuickSetupForm />
+        </div>
 
         <div className="mt-5 rounded-xl border border-amber-500/30 bg-amber-950/20 p-3 text-xs text-amber-100">
-          New projects start at 0 so the drawing only appears after the real job dimensions are entered.
+          Values entered here immediately update the left side menu and canvas calculations.
         </div>
 
         <div className="mt-5 flex justify-end">

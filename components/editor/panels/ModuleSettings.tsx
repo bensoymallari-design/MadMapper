@@ -3,7 +3,7 @@
 import { Palette } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { FieldGroup, SelectInput, TextInput } from "@/components/ui/Field";
+import { FieldGroup, NumberInput, SelectInput, TextInput } from "@/components/ui/Field";
 import { useEditorStore } from "@/store/editorStore";
 import type { CabinetSequenceDirection, ModuleStatus } from "@/types/project";
 
@@ -120,10 +120,10 @@ export function ModuleSettingsPanel() {
                 <TextInput value={labelPrefix} onChange={(event) => setLabelPrefix(event.target.value)} />
               </FieldGroup>
               <FieldGroup label="Start">
-                <TextInput type="number" value={labelStart} onChange={(event) => setLabelStart(Number(event.target.value))} />
+                <NumberInput value={labelStart} onValueChange={setLabelStart} />
               </FieldGroup>
               <FieldGroup label="Pad">
-                <TextInput type="number" min={1} value={labelPad} onChange={(event) => setLabelPad(Number(event.target.value))} />
+                <NumberInput value={labelPad} min={1} onValueChange={setLabelPad} />
               </FieldGroup>
             </div>
             <div className="mt-2 text-xs text-slate-500">

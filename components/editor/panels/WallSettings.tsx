@@ -3,7 +3,7 @@
 import { AlertTriangle } from "lucide-react";
 import { calculateLayoutMetrics, validateDimensions } from "@/lib/calculations";
 import { useEditorStore } from "@/store/editorStore";
-import { FieldGroup, SelectInput, TextInput } from "@/components/ui/Field";
+import { FieldGroup, NumberInput, SelectInput, TextInput } from "@/components/ui/Field";
 
 export function WallSettingsPanel() {
   const { project, setProjectName, updateWall, updateModuleSettings, updateCabinet } = useEditorStore();
@@ -20,20 +20,20 @@ export function WallSettingsPanel() {
       <PanelTitle title="1. Module Size" />
       <div className="grid grid-cols-2 gap-3">
         <FieldGroup label="Module width">
-          <NumberInput value={project.module.width} onChange={(value) => updateModuleSettings({ width: value })} />
+          <NumberInput value={project.module.width} onValueChange={(value) => updateModuleSettings({ width: value })} />
         </FieldGroup>
         <FieldGroup label="Module height">
-          <NumberInput value={project.module.height} onChange={(value) => updateModuleSettings({ height: value })} />
+          <NumberInput value={project.module.height} onValueChange={(value) => updateModuleSettings({ height: value })} />
         </FieldGroup>
       </div>
 
       <PanelTitle title="2. Wall Size" />
       <div className="grid grid-cols-2 gap-3">
         <FieldGroup label="Wall width">
-          <NumberInput value={project.wall.width} onChange={(value) => updateWall({ width: value })} />
+          <NumberInput value={project.wall.width} onValueChange={(value) => updateWall({ width: value })} />
         </FieldGroup>
         <FieldGroup label="Wall height">
-          <NumberInput value={project.wall.height} onChange={(value) => updateWall({ height: value })} />
+          <NumberInput value={project.wall.height} onValueChange={(value) => updateWall({ height: value })} />
         </FieldGroup>
         <FieldGroup label="Unit">
           <SelectInput value={project.wall.unit} onChange={(event) => updateWall({ unit: event.target.value as typeof project.wall.unit })}>
@@ -55,20 +55,20 @@ export function WallSettingsPanel() {
       <PanelTitle title="3. Cabinet Size" />
       <div className="grid grid-cols-2 gap-3">
         <FieldGroup label="Cabinet width">
-          <NumberInput value={project.cabinet.width} onChange={(value) => updateCabinet({ width: value })} />
+          <NumberInput value={project.cabinet.width} onValueChange={(value) => updateCabinet({ width: value })} />
         </FieldGroup>
         <FieldGroup label="Cabinet height">
-          <NumberInput value={project.cabinet.height} onChange={(value) => updateCabinet({ height: value })} />
+          <NumberInput value={project.cabinet.height} onValueChange={(value) => updateCabinet({ height: value })} />
         </FieldGroup>
       </div>
 
       <PanelTitle title="4. Pixel Resolution" />
       <div className="grid grid-cols-2 gap-3">
         <FieldGroup label="Pixel width">
-          <NumberInput value={project.module.pixelWidth} onChange={(value) => updateModuleSettings({ pixelWidth: value })} />
+          <NumberInput value={project.module.pixelWidth} onValueChange={(value) => updateModuleSettings({ pixelWidth: value })} />
         </FieldGroup>
         <FieldGroup label="Pixel height">
-          <NumberInput value={project.module.pixelHeight} onChange={(value) => updateModuleSettings({ pixelHeight: value })} />
+          <NumberInput value={project.module.pixelHeight} onValueChange={(value) => updateModuleSettings({ pixelHeight: value })} />
         </FieldGroup>
       </div>
 
@@ -105,10 +105,6 @@ export function WallSettingsPanel() {
 
 function PanelTitle({ title }: { title: string }) {
   return <h2 className="border-b border-slate-800 pb-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">{title}</h2>;
-}
-
-function NumberInput({ value, onChange }: { value: number; onChange: (value: number) => void }) {
-  return <TextInput type="number" min={0} value={value} onChange={(event) => onChange(Number(event.target.value))} />;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

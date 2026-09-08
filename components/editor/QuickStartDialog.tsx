@@ -17,7 +17,7 @@ export function QuickStartDialog({ open, onClose }: QuickStartDialogProps) {
       <div className="panel w-full max-w-lg rounded-2xl p-5">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-lg font-semibold text-sky-50">Quick start</h2>
+            <h2 className="text-lg font-semibold text-sky-50">Quick Setup</h2>
             <p className="mt-1 text-sm text-slate-400">Set up the physical LED wall before drawing routes or assigning power.</p>
           </div>
           <Button size="icon" variant="ghost" onClick={onClose}>

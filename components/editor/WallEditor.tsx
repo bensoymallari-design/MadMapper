@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/Button";
 import { CanvasToolbar } from "@/components/editor/CanvasToolbar";
 import { ColorLegend } from "@/components/editor/ColorLegend";
 import { CollapsiblePanel } from "@/components/editor/CollapsiblePanel";
@@ -12,7 +13,6 @@ import { MappingSettingsPanel } from "@/components/editor/panels/MappingSettings
 import { ModuleSettingsPanel } from "@/components/editor/panels/ModuleSettings";
 import { WallSettingsPanel } from "@/components/editor/panels/WallSettings";
 import { QuickStartDialog } from "@/components/editor/QuickStartDialog";
-import { QuickSetupForm } from "@/components/editor/QuickSetupForm";
 import { useEditorStore } from "@/store/editorStore";
 
 export function WallEditor() {
@@ -23,7 +23,6 @@ export function WallEditor() {
   const {
     importProject,
     saveLocal,
-    loadLocal,
     undo,
     redo,
     selectAll,
@@ -32,10 +31,6 @@ export function WallEditor() {
     setView,
     view
   } = useEditorStore();
-
-  useEffect(() => {
-    loadLocal();
-  }, [loadLocal]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -102,9 +97,13 @@ export function WallEditor() {
       <div className="grid min-h-0 flex-1 grid-cols-[320px_minmax(0,1fr)_340px] gap-3">
         <aside className="panel min-h-0 overflow-y-auto rounded-xl p-4">
           <div className="space-y-3">
-            <CollapsiblePanel title="Quick Setup" description="Module, wall, cabinet, pixels" defaultOpen>
-              <QuickSetupForm />
-            </CollapsiblePanel>
+            <section className="rounded-xl border border-sky-500/40 bg-sky-950/30 p-3">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-sky-200">Quick Setup</div>
+              <p className="mb-3 text-xs text-slate-400">Open the guided setup popup for module, wall, cabinet, and pixel values.</p>
+              <Button className="w-full" variant="primary" onClick={() => setQuickStartOpen(true)}>
+                Open Quick Setup
+              </Button>
+            </section>
             <CollapsiblePanel title="Project Files" description="New, open, export JSON" defaultOpen>
               <ProjectManager />
             </CollapsiblePanel>

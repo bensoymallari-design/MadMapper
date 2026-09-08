@@ -2,7 +2,7 @@
 
 import { Route } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { FieldGroup, SelectInput, TextInput } from "@/components/ui/Field";
+import { FieldGroup, NumberInput, SelectInput, TextInput } from "@/components/ui/Field";
 import { useEditorStore } from "@/store/editorStore";
 
 export function MappingSettingsPanel() {
@@ -68,7 +68,7 @@ export function MappingSettingsPanel() {
             <TextInput value={project.numbering.separator} onChange={(event) => updateNumbering({ separator: event.target.value })} />
           </FieldGroup>
           <FieldGroup label="Start">
-            <TextInput type="number" value={project.numbering.startNumber} onChange={(event) => updateNumbering({ startNumber: Number(event.target.value) })} />
+            <NumberInput value={project.numbering.startNumber} onValueChange={(value) => updateNumbering({ startNumber: value })} />
           </FieldGroup>
         </div>
       </div>
@@ -81,10 +81,10 @@ export function MappingSettingsPanel() {
         </label>
         <div className="grid grid-cols-2 gap-2">
           <FieldGroup label="Ports">
-            <TextInput type="number" min={1} value={project.mapping.portCount} onChange={(event) => updateMapping({ portCount: Number(event.target.value) })} />
+            <NumberInput value={project.mapping.portCount} min={1} onValueChange={(value) => updateMapping({ portCount: value })} />
           </FieldGroup>
           <FieldGroup label="Modules / port">
-            <TextInput type="number" min={1} value={project.mapping.modulesPerPort} onChange={(event) => updateMapping({ modulesPerPort: Number(event.target.value) })} />
+            <NumberInput value={project.mapping.modulesPerPort} min={1} onValueChange={(value) => updateMapping({ modulesPerPort: value })} />
           </FieldGroup>
         </div>
         <FieldGroup label="Direction">
@@ -188,12 +188,7 @@ export function MappingSettingsPanel() {
           />
         </label>
         <FieldGroup label="Default PSU per cabinet">
-          <TextInput
-            type="number"
-            min={0}
-            value={power.defaultSuppliesPerCabinet}
-            onChange={(event) => updatePower({ defaultSuppliesPerCabinet: Math.max(0, Number(event.target.value)) })}
-          />
+          <NumberInput value={power.defaultSuppliesPerCabinet} onValueChange={(value) => updatePower({ defaultSuppliesPerCabinet: value })} />
         </FieldGroup>
         <div className="rounded-lg border border-orange-500/30 bg-orange-950/20 p-3 text-xs text-orange-100">
           Start a DC loop, then click cabinets in the order the low-voltage power jumps cabinet-to-cabinet. Click a cabinet in DC Power mode
@@ -212,14 +207,12 @@ export function MappingSettingsPanel() {
           Clear DC loops
         </Button>
         <FieldGroup label={selectedPowerCabinetId ? `Selected cabinet PSU count` : "Selected cabinet PSU count"}>
-          <TextInput
-            type="number"
-            min={0}
-            disabled={!selectedPowerCabinetId}
+          <NumberInput
             value={selectedSupplyCount}
-            onChange={(event) => {
+            disabled={!selectedPowerCabinetId}
+            onValueChange={(value) => {
               if (selectedPowerCabinetId) {
-                setCabinetPowerSupplies(selectedPowerCabinetId, Number(event.target.value));
+                setCabinetPowerSupplies(selectedPowerCabinetId, value);
               }
             }}
           />
@@ -287,19 +280,17 @@ export function MappingSettingsPanel() {
         </FieldGroup>
         <div className="grid grid-cols-2 gap-2">
           <FieldGroup label="Cabinet width">
-            <TextInput
-              type="number"
-              disabled={project.cabinet.mode === "manual"}
+            <NumberInput
               value={project.cabinet.width}
-              onChange={(event) => updateCabinet({ width: Number(event.target.value) })}
+              disabled={project.cabinet.mode === "manual"}
+              onValueChange={(value) => updateCabinet({ width: value })}
             />
           </FieldGroup>
           <FieldGroup label="Cabinet height">
-            <TextInput
-              type="number"
-              disabled={project.cabinet.mode === "manual"}
+            <NumberInput
               value={project.cabinet.height}
-              onChange={(event) => updateCabinet({ height: Number(event.target.value) })}
+              disabled={project.cabinet.mode === "manual"}
+              onValueChange={(value) => updateCabinet({ height: value })}
             />
           </FieldGroup>
         </div>

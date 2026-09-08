@@ -1,6 +1,6 @@
 "use client";
 
-import { FieldGroup, SelectInput, TextInput } from "@/components/ui/Field";
+import { FieldGroup, NumberInput, SelectInput, TextInput } from "@/components/ui/Field";
 import { calculateLayoutMetrics } from "@/lib/calculations";
 import { useEditorStore } from "@/store/editorStore";
 
@@ -18,10 +18,10 @@ export function QuickSetupForm() {
         <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-sky-200">1. Module size</div>
         <div className="grid grid-cols-2 gap-3">
           <FieldGroup label="Width">
-            <NumberInput value={project.module.width} onChange={(value) => updateModuleSettings({ width: value })} />
+            <NumberInput value={project.module.width} onValueChange={(value) => updateModuleSettings({ width: value })} />
           </FieldGroup>
           <FieldGroup label="Height">
-            <NumberInput value={project.module.height} onChange={(value) => updateModuleSettings({ height: value })} />
+            <NumberInput value={project.module.height} onValueChange={(value) => updateModuleSettings({ height: value })} />
           </FieldGroup>
         </div>
       </div>
@@ -30,10 +30,10 @@ export function QuickSetupForm() {
         <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-sky-200">2. Wall size</div>
         <div className="grid grid-cols-2 gap-3">
           <FieldGroup label="Width">
-            <NumberInput value={project.wall.width} onChange={(value) => updateWall({ width: value })} />
+            <NumberInput value={project.wall.width} onValueChange={(value) => updateWall({ width: value })} />
           </FieldGroup>
           <FieldGroup label="Height">
-            <NumberInput value={project.wall.height} onChange={(value) => updateWall({ height: value })} />
+            <NumberInput value={project.wall.height} onValueChange={(value) => updateWall({ height: value })} />
           </FieldGroup>
         </div>
         <div className="mt-3">
@@ -51,10 +51,10 @@ export function QuickSetupForm() {
         <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-sky-200">3. Cabinet size</div>
         <div className="grid grid-cols-2 gap-3">
           <FieldGroup label="Width">
-            <NumberInput value={project.cabinet.width} onChange={(value) => updateCabinet({ width: value })} />
+            <NumberInput value={project.cabinet.width} onValueChange={(value) => updateCabinet({ width: value })} />
           </FieldGroup>
           <FieldGroup label="Height">
-            <NumberInput value={project.cabinet.height} onChange={(value) => updateCabinet({ height: value })} />
+            <NumberInput value={project.cabinet.height} onValueChange={(value) => updateCabinet({ height: value })} />
           </FieldGroup>
         </div>
       </div>
@@ -63,10 +63,10 @@ export function QuickSetupForm() {
         <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-sky-200">4. Pixel resolution</div>
         <div className="grid grid-cols-2 gap-3">
           <FieldGroup label="Pixel width">
-            <NumberInput value={project.module.pixelWidth} onChange={(value) => updateModuleSettings({ pixelWidth: value })} />
+            <NumberInput value={project.module.pixelWidth} onValueChange={(value) => updateModuleSettings({ pixelWidth: value })} />
           </FieldGroup>
           <FieldGroup label="Pixel height">
-            <NumberInput value={project.module.pixelHeight} onChange={(value) => updateModuleSettings({ pixelHeight: value })} />
+            <NumberInput value={project.module.pixelHeight} onValueChange={(value) => updateModuleSettings({ pixelHeight: value })} />
           </FieldGroup>
         </div>
       </div>
@@ -82,10 +82,6 @@ export function QuickSetupForm() {
       </div>
     </div>
   );
-}
-
-function NumberInput({ value, onChange }: { value: number; onChange: (value: number) => void }) {
-  return <TextInput type="number" min={0} value={value} onChange={(event) => onChange(Number(event.target.value))} />;
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

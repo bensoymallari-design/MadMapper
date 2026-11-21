@@ -26,7 +26,8 @@ export type ToolMode =
   | "measure"
   | "dimension"
   | "text"
-  | "shape";
+  | "shape"
+  | "line";
 
 export type ShapeKind = "rect" | "ellipse" | "line";
 
@@ -38,6 +39,39 @@ export interface TitleStyle {
   offsetY: number;
   maxWidth: number;
   align: "left" | "center";
+}
+
+export interface SheetSettings {
+  pageSize: "a4" | "a3" | "a2" | "a1" | "custom";
+  customWidth: number;
+  customHeight: number;
+  orientation: "landscape" | "portrait";
+  margin: number;
+  pageCount: number;
+  columns: number;
+  scaleMode: "fit" | "custom";
+  scalePercent: number;
+  showGuides: boolean;
+  wallX: number;
+  wallY: number;
+}
+
+export interface PlacedProject {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  project: LedWallProject;
+}
+
+export interface CanvasImage {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  dataUrl: string;
 }
 
 export interface CanvasAnnotation {
@@ -199,6 +233,9 @@ export interface LedWallProject {
   projectName: string;
   titleStyle: TitleStyle;
   annotations: CanvasAnnotation[];
+  sheet: SheetSettings;
+  placedProjects: PlacedProject[];
+  images: CanvasImage[];
   wall: WallSettings;
   module: ModuleSettings;
   numbering: NumberingSettings;

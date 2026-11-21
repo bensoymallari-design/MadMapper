@@ -5,7 +5,8 @@ import { annotationBounds, defaultTitleStyle, formatAcLoopLabel, pdfFontFamily }
 import { calculateCabinetLayout, calculateLayoutMetrics } from "@/lib/calculations";
 import { getRainbowModuleColor } from "@/lib/colors";
 import { generatePortMapping } from "@/lib/mapping";
-import type { CanvasAnnotation, LedWallProject } from "@/types/project";
+import { normalizeSheet, pageFrames, pageSizeMm, readableScalePercent, worldPerPdfMm } from "@/lib/sheet";
+import type { CanvasAnnotation, CanvasImage, LedWallProject } from "@/types/project";
 
 export type PdfPageSize = "a4" | "a3" | "a2" | "a1" | "custom";
 export type PdfOrientation = "landscape" | "portrait";
@@ -35,81 +36,73 @@ interface DiagramOptions {
   showRoutes: boolean;
   showPower: boolean;
   showAnnotations: boolean;
+  includeAnnotations?: boolean;
 }
 
 export function exportProjectPdf(project: LedWallProject, options: PdfExportOptions) {
-  const format = resolveFormat(options);
-  const doc = new jsPDF({
+  const sheet = normalizeSheet({
+    ...project.sheet,
+    pageSize: options.pageSize,
+    customWidth: options.customWidth,
+    customHeight: options.customHeight,
     orientation: options.orientation,
-    unit: "mm",
-    format
+    margin: options.margin,
+    scaleMode: options.scaleMode === "fit" ? "fit" : "custom",
+    scalePercent:
+      options.scaleMode === "readable"
+        ? readableScalePercent(project)
+        : options.scaleMode === "custom"
+          ? options.scalePercent
+          : 100
   });
-  const metrics = calculateLayoutMetrics(project.wall, project.module, project.modules);
-  const margin = clamp(options.margin, 8, 30);
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const legendWidth = options.showLegend ? 58 : 0;
-  const titleWidth = Math.max(40, pageWidth - margin * 2 - legendWidth - 4);
-  const titleLayout = measureTitle(doc, project, titleWidth);
-  const stats = statLines(doc, project, metrics, titleWidth);
-  const legendHeight = options.showLegend ? 8 + Math.min(project.mapping.portCount, Object.keys(project.legend.ports).length) * 5 : 0;
-  const titleBlock = options.showHeader ? 10 + titleLayout.blockHeight + 3 + stats.length * 4 : 0;
-  const headerHeight = Math.max(titleBlock, legendHeight);
-  const contentTop = margin + headerHeight + 2;
-  const contentHeight = pageHeight - contentTop - 10;
-  const contentWidth = pageWidth - margin * 2;
-  const dimLeft = options.showDimensions ? 14 : 0;
-  const dimTop = options.showDimensions ? 8 : 0;
-  const availW = Math.max(20, contentWidth - dimLeft);
-  const availH = Math.max(20, contentHeight - dimTop);
-  const fitScale = Math.min(availW / Math.max(project.wall.width, 1), availH / Math.max(project.wall.height, 1));
-  let scale = fitScale;
-  if (options.scaleMode === "custom") scale = fitScale * (clamp(options.scalePercent, 25, 400) / 100);
-  if (options.scaleMode === "readable" && project.module.width > 0) {
-    scale = Math.max(fitScale, 6.5 / project.module.width);
-  }
-  if (options.scaleMode !== "fit") {
-    scale = Math.min(scale, (availW * 8) / Math.max(project.wall.width, 1), (availH * 8) / Math.max(project.wall.height, 1));
-  }
-  const tilesX = Math.max(1, Math.ceil((project.wall.width * scale) / availW - 1e-6));
-  const tilesY = Math.max(1, Math.ceil((project.wall.height * scale) / availH - 1e-6));
+  const framed = { ...project, sheet };
+  const frames = pageFrames(framed);
+  const page = pageSizeMm(sheet);
+  const pdfScale = 1 / worldPerPdfMm(framed);
+  const format: [number, number] = [page.width, page.height];
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format });
   const diagramOptions: DiagramOptions = {
     showDimensions: options.showDimensions,
     showModuleNumbers: options.showModuleNumbers,
     showRoutes: options.showRoutes,
     showPower: options.showPower,
-    showAnnotations: options.showAnnotations
+    showAnnotations: options.showAnnotations,
+    includeAnnotations: false
   };
 
-  let page = 1;
-  for (let tileY = 0; tileY < tilesY; tileY += 1) {
-    for (let tileX = 0; tileX < tilesX; tileX += 1) {
-      if (page > 1) doc.addPage(format, options.orientation);
-      if (options.showHeader) drawHeader(doc, project, margin, titleLayout, stats, titleWidth);
-      if (options.showLegend) drawLegend(doc, project, pageWidth - margin - 52, margin);
-      doc.saveGraphicsState();
-      // A style of null keeps the rectangle as a clip path. The default stroke
-      // style would paint and discard the path, and the following clip would hide the wall.
-      doc.rect(margin, contentTop, contentWidth, contentHeight, null);
-      doc.clip();
-      doc.discardPath();
-      drawDiagram(
-        doc,
-        project,
-        margin + dimLeft - tileX * availW,
-        contentTop + dimTop - tileY * availH,
-        scale,
-        diagramOptions
-      );
-      doc.restoreGraphicsState();
-      const tileLabel = tilesX * tilesY > 1 ? `Tile ${tileY + 1}-${tileX + 1}` : "";
-      drawFooter(doc, page, pageWidth, pageHeight, tileLabel);
-      page += 1;
-    }
-  }
+  frames.forEach((frame, index) => {
+    if (index > 0) doc.addPage(format, "portrait");
+    const originX = -frame.x * pdfScale;
+    const originY = -frame.y * pdfScale;
+    doc.saveGraphicsState();
+    doc.rect(0, 0, page.width, page.height, null);
+    doc.clip();
+    doc.discardPath();
+    drawDiagram(doc, project, originX + sheet.wallX * pdfScale, originY + sheet.wallY * pdfScale, pdfScale, diagramOptions);
+    framed.placedProjects.forEach((placed) => {
+      const placedX = originX + placed.x * pdfScale;
+      const placedY = originY + placed.y * pdfScale;
+      drawDiagram(doc, placed.project, placedX, placedY, pdfScale, diagramOptions);
+      doc.setTextColor(15, 23, 42);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.text(placed.name, placedX, placedY - 2);
+      if (options.showAnnotations) drawAnnotations(doc, placed.project.annotations ?? [], placedX, placedY, pdfScale);
+    });
+    if (options.showAnnotations) drawAnnotations(doc, project.annotations ?? [], originX, originY, pdfScale);
+    drawPdfImages(doc, project.images ?? [], originX, originY, pdfScale);
+    doc.restoreGraphicsState();
+    drawMarginGuide(doc, sheet.margin, page.width, page.height);
+    if (options.showHeader) drawSheetHeader(doc, project, sheet.margin, page.width);
+    if (options.showLegend) drawCompactLegend(doc, project, page.width - sheet.margin, Math.max(4, sheet.margin * 0.65));
+    drawFooter(doc, index + 1, page.width, page.height, "");
+  });
 
-  if (options.detailPages && tilesX === 1 && tilesY === 1 && (metrics.columns > 18 || metrics.rows > 30)) {
-    addDetailPages(doc, project, options, diagramOptions, metrics.columns, page);
+  if (options.detailPages) {
+    const metrics = calculateLayoutMetrics(project.wall, project.module, project.modules);
+    if (metrics.columns > 18 || metrics.rows > 30) {
+      addDetailPages(doc, project, options, diagramOptions, metrics.columns, frames.length + 1);
+    }
   }
 
   doc.save(`${project.projectName.replace(/\s+/g, "-").toLowerCase()}-mapping.pdf`);
@@ -118,74 +111,6 @@ export function exportProjectPdf(project: LedWallProject, options: PdfExportOpti
 function resolveFormat(options: PdfExportOptions): PdfPageSize | [number, number] {
   if (options.pageSize !== "custom") return options.pageSize;
   return [clamp(options.customWidth, 80, 2000), clamp(options.customHeight, 80, 2000)];
-}
-
-function measureTitle(doc: jsPDF, project: LedWallProject, titleWidth: number) {
-  const style = { ...defaultTitleStyle, ...project.titleStyle };
-  const fontSize = clamp(style.fontSize || 16, 8, 72);
-  const width = style.maxWidth > 0 ? Math.min(style.maxWidth, titleWidth) : titleWidth;
-  doc.setFont(pdfFontFamily(style.fontFamily), "normal");
-  doc.setFontSize(fontSize);
-  const lines = doc.splitTextToSize(project.projectName || "Untitled LED Wall", Math.max(24, width)) as string[];
-  const lineMm = fontSize * 0.3528 * 1.25;
-  return {
-    style,
-    fontSize,
-    width,
-    lines,
-    lineMm,
-    blockHeight: Math.max(0, style.offsetY) + lines.length * lineMm
-  };
-}
-
-function statLines(
-  doc: jsPDF,
-  project: LedWallProject,
-  metrics: ReturnType<typeof calculateLayoutMetrics>,
-  width: number
-) {
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  const text = [
-    `Wall ${project.wall.width} x ${project.wall.height} ${project.wall.unit}`,
-    `Module ${project.module.width} x ${project.module.height} ${project.wall.unit}`,
-    `Module px ${project.module.pixelWidth} x ${project.module.pixelHeight}`,
-    `Layout ${metrics.columns} x ${metrics.rows}`,
-    `Active ${metrics.activeModules}/${metrics.totalModules}`,
-    `Resolution ${metrics.wallPixelWidth} x ${metrics.wallPixelHeight} px`
-  ].join("   ");
-  return doc.splitTextToSize(text, Math.max(24, width)) as string[];
-}
-
-function drawHeader(
-  doc: jsPDF,
-  project: LedWallProject,
-  margin: number,
-  titleLayout: ReturnType<typeof measureTitle>,
-  stats: string[],
-  titleWidth: number
-) {
-  const { style, fontSize, width, lines, lineMm } = titleLayout;
-  doc.setFont(pdfFontFamily(style.fontFamily), "bold");
-  doc.setFontSize(9);
-  doc.setTextColor(125, 211, 252);
-  doc.text("LED WALL MAPPING", margin, margin + 4);
-
-  const rgb = hexToRgb(style.color || "#e0f2fe");
-  doc.setTextColor(rgb.r, rgb.g, rgb.b);
-  doc.setFont(pdfFontFamily(style.fontFamily), "normal");
-  doc.setFontSize(fontSize);
-  const align = style.align === "center" ? "center" : "left";
-  const titleX = margin + Math.max(0, style.offsetX) + (align === "center" ? width / 2 : 0);
-  doc.text(lines, titleX, Math.max(margin + 8, margin + 9 + style.offsetY), { align, maxWidth: width });
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(148, 163, 184);
-  const statsY = margin + 9 + Math.max(0, style.offsetY) + lines.length * lineMm + 4;
-  stats.forEach((line, index) => {
-    doc.text(line, margin, statsY + index * 4, { maxWidth: titleWidth });
-  });
 }
 
 function drawDiagram(
@@ -263,7 +188,7 @@ function drawDiagram(
     drawPowerLoops(doc, project, cabinets, x, y, scale);
   }
 
-  if (options.showAnnotations) {
+  if (options.showAnnotations && options.includeAnnotations !== false) {
     drawAnnotations(doc, project.annotations ?? [], x, y, scale);
   }
 }
@@ -282,9 +207,7 @@ function drawReceivingCardRoutes(
     const routeCabinets = route.cabinetIds.map((id) => byId.get(id)).filter((cabinet) => Boolean(cabinet));
     if (routeCabinets.length === 0) return;
 
-    doc.setDrawColor(rgb.r, rgb.g, rgb.b);
-    doc.setFillColor(rgb.r, rgb.g, rgb.b);
-    doc.setLineWidth(0.28);
+    const width = visibleRouteWidth(routeCabinets[0] ? routeCabinets[0].height * scale : 8);
     routeCabinets.slice(0, -1).forEach((cabinet, index) => {
       const next = routeCabinets[index + 1];
       if (!cabinet || !next) return;
@@ -296,38 +219,37 @@ function drawReceivingCardRoutes(
         x: x + (next.x + next.width / 2) * scale,
         y: y + (next.y + next.height / 2) * scale
       };
-      doc.line(start.x, start.y, end.x, end.y);
-      doc.circle(end.x, end.y, 0.55, "F");
+      strokeVisibleLine(doc, start.x, start.y, end.x, end.y, rgb, width);
     });
 
     routeCabinets.forEach((cabinet, index) => {
       if (!cabinet) return;
       const cx = x + (cabinet.x + cabinet.width / 2) * scale;
       const cy = y + (cabinet.y + cabinet.height / 2) * scale;
-      doc.setDrawColor(248, 250, 252);
-      doc.circle(cx, cy, 1.15, "FD");
+      const radius = Math.max(1.7, width * 0.95);
+      doc.setFillColor(rgb.r, rgb.g, rgb.b);
+      doc.setDrawColor(15, 23, 42);
+      doc.setLineWidth(0.3);
+      doc.circle(cx, cy, radius, "FD");
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(3.5);
+      doc.setFontSize(Math.max(5, radius * 2.1));
       doc.text(String(index + 1), cx, cy, { align: "center", baseline: "middle" });
     });
 
     if (project.routing.showLabels) {
       const first = routeCabinets[0];
       const last = routeCabinets.at(-1);
-      const labelRgb = hexToRgb(route.labelColor ?? "#e0f2fe");
-      doc.setTextColor(labelRgb.r, labelRgb.g, labelRgb.b);
-      doc.setFontSize(4.5);
+      const offset = Math.max(5.5, width * 3.2);
       if (first) {
-        doc.text(route.startLabel, x + (first.x + first.width / 2) * scale, y + (first.y + first.height / 2) * scale - 2.2, {
-          align: "center"
-        });
+        drawRouteChip(doc, route.startLabel, x + (first.x + first.width / 2) * scale, y + (first.y + first.height / 2) * scale - offset, rgb);
       }
       if (last && last !== first) {
-        doc.text(
+        drawRouteChip(
+          doc,
           `${route.endLabel} / ${route.backupLabel}`,
           x + (last.x + last.width / 2) * scale,
-          y + (last.y + last.height / 2) * scale + 3.2,
-          { align: "center" }
+          y + (last.y + last.height / 2) * scale + offset,
+          rgb
         );
       }
     }
@@ -366,9 +288,7 @@ function drawPowerLoops(
     const routeCabinets = route.cabinetIds.map((id) => byId.get(id)).filter((cabinet) => Boolean(cabinet));
     if (routeCabinets.length === 0) return;
 
-    doc.setDrawColor(rgb.r, rgb.g, rgb.b);
-    doc.setFillColor(rgb.r, rgb.g, rgb.b);
-    doc.setLineWidth(0.28);
+    const width = visibleRouteWidth(routeCabinets[0] ? routeCabinets[0].height * scale : 8);
     routeCabinets.slice(0, -1).forEach((cabinet, index) => {
       const next = routeCabinets[index + 1];
       if (!cabinet || !next) return;
@@ -380,41 +300,44 @@ function drawPowerLoops(
         x: x + (next.x + next.width / 2) * scale,
         y: y + (next.y + next.height * 0.72) * scale
       };
-      doc.line(start.x, start.y, end.x, end.y);
-      doc.circle(end.x, end.y, 0.45, "F");
+      strokeVisibleLine(doc, start.x, start.y, end.x, end.y, rgb, width);
     });
 
     routeCabinets.forEach((cabinet) => {
       if (!cabinet) return;
       const markerX = x + (cabinet.x + cabinet.width / 2) * scale;
-      const markerY = y + (cabinet.y + cabinet.height * 0.72) * scale - 2.2;
-      doc.setDrawColor(255, 247, 237);
-      doc.rect(markerX - 1.6, markerY - 1.1, 3.2, 2.2, "FD");
+      const markerY = y + (cabinet.y + cabinet.height * 0.72) * scale;
+      const badgeW = Math.max(6.2, width * 4.8);
+      const badgeH = Math.max(3.4, width * 2.5);
+      doc.setFillColor(rgb.r, rgb.g, rgb.b);
+      doc.setDrawColor(15, 23, 42);
+      doc.setLineWidth(0.3);
+      doc.rect(markerX - badgeW / 2, markerY - badgeH / 2, badgeW, badgeH, "FD");
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(2.6);
-      doc.text("AC", markerX, markerY + 0.5, { align: "center" });
+      doc.setFontSize(Math.max(5.5, badgeH * 1.7));
+      doc.text("AC", markerX, markerY, { align: "center", baseline: "middle" });
     });
 
     if (power.showLabels) {
       const first = routeCabinets[0];
       const last = routeCabinets.at(-1);
-      const labelRgb = hexToRgb(route.labelColor ?? "#fff7ed");
-      doc.setTextColor(labelRgb.r, labelRgb.g, labelRgb.b);
-      doc.setFontSize(4.5);
+      const offset = Math.max(5.5, width * 3.2);
       if (first) {
-        doc.text(
+        drawRouteChip(
+          doc,
           formatAcLoopLabel(route.sourceLabel),
           x + (first.x + first.width / 2) * scale,
-          y + (first.y + first.height * 0.72) * scale - 4.2,
-          { align: "center" }
+          y + (first.y + first.height * 0.72) * scale - offset,
+          rgb
         );
       }
       if (last && last !== first) {
-        doc.text(
+        drawRouteChip(
+          doc,
           formatAcLoopLabel(route.endLabel),
           x + (last.x + last.width / 2) * scale,
-          y + (last.y + last.height * 0.72) * scale + 4.2,
-          { align: "center" }
+          y + (last.y + last.height * 0.72) * scale + offset,
+          rgb
         );
       }
     }
@@ -462,19 +385,55 @@ function drawAnnotations(doc: jsPDF, annotations: CanvasAnnotation[], x: number,
   });
 }
 
-function drawLegend(doc: jsPDF, project: LedWallProject, x: number, y: number) {
-  doc.setTextColor(226, 232, 240);
-  doc.setFontSize(9);
-  doc.text("Legend", x, y);
-  Object.entries(project.legend.ports)
-    .slice(0, project.mapping.portCount)
-    .forEach(([port, color], index) => {
-      const rgb = hexToRgb(color);
-      doc.setFillColor(rgb.r, rgb.g, rgb.b);
-      doc.rect(x, y + 4 + index * 5, 4, 3.2, "F");
-      doc.setTextColor(226, 232, 240);
-      doc.text(`Port ${port}`, x + 6, y + 6.6 + index * 5);
-    });
+function drawSheetHeader(doc: jsPDF, project: LedWallProject, margin: number, pageWidth: number) {
+  const style = { ...defaultTitleStyle, ...project.titleStyle };
+  const y = Math.max(4, margin * 0.62);
+  doc.setFont(pdfFontFamily(style.fontFamily), "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(3, 105, 161);
+  doc.text("LED WALL MAPPING", margin, y);
+  const rgb = hexToRgb(style.color || "#0f172a");
+  const darkEnough = rgb.r + rgb.g + rgb.b < 520;
+  doc.setTextColor(darkEnough ? rgb.r : 15, darkEnough ? rgb.g : 23, darkEnough ? rgb.b : 42);
+  doc.setFont(pdfFontFamily(style.fontFamily), "normal");
+  doc.setFontSize(Math.min(style.fontSize, 11));
+  const title = doc.splitTextToSize(project.projectName || "Untitled LED Wall", Math.max(40, pageWidth * 0.46)) as string[];
+  doc.text(title[0] ?? "", margin + 42, y);
+}
+
+function drawCompactLegend(doc: jsPDF, project: LedWallProject, right: number, y: number) {
+  const ports = Object.entries(project.legend.ports).slice(0, project.mapping.portCount);
+  let x = right;
+  for (let index = ports.length - 1; index >= 0; index -= 1) {
+    const [port, color] = ports[index];
+    const rgb = hexToRgb(color);
+    x -= 16;
+    doc.setFillColor(rgb.r, rgb.g, rgb.b);
+    doc.rect(x, y - 2.4, 3.2, 2.4, "F");
+    doc.setTextColor(51, 65, 85);
+    doc.setFontSize(7);
+    doc.text(port, x + 4, y);
+  }
+}
+
+function drawMarginGuide(doc: jsPDF, margin: number, pageWidth: number, pageHeight: number) {
+  if (margin <= 0) return;
+  doc.setDrawColor(148, 163, 184);
+  doc.setLineWidth(0.2);
+  doc.setLineDashPattern([1.4, 1.1], 0);
+  doc.rect(margin, margin, Math.max(pageWidth - margin * 2, 1), Math.max(pageHeight - margin * 2, 1));
+  doc.setLineDashPattern([], 0);
+}
+
+function drawPdfImages(doc: jsPDF, images: CanvasImage[], x: number, y: number, scale: number) {
+  images.forEach((image) => {
+    const format = image.dataUrl.includes("image/png") ? "PNG" : "JPEG";
+    try {
+      doc.addImage(image.dataUrl, format, x + image.x * scale, y + image.y * scale, Math.max(image.width * scale, 0.2), Math.max(image.height * scale, 0.2));
+    } catch {
+      // A damaged image should not blank the rest of the sheet.
+    }
+  });
 }
 
 function drawFooter(doc: jsPDF, page: number, pageWidth: number, pageHeight: number, tileLabel: string) {
@@ -519,6 +478,46 @@ function addDetailPages(
     drawFooter(doc, page, pageWidth, pageHeight, "Detail");
     page += 1;
   }
+}
+
+function drawRouteChip(doc: jsPDF, text: string, x: number, y: number, border: { r: number; g: number; b: number }) {
+  const label = text.trim();
+  if (!label) return;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(6.5);
+  const width = Math.min(70, Math.max(10, doc.getTextWidth(label) + 2.4));
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(border.r, border.g, border.b);
+  doc.setLineWidth(0.4);
+  doc.rect(x - width / 2, y - 2.4, width, 4.2, "FD");
+  doc.setTextColor(15, 23, 42);
+  doc.text(label, x, y + 0.4, { align: "center" });
+}
+
+function visibleRouteWidth(spanMm: number) {
+  return clamp(spanMm * 0.07, 0.85, 1.6);
+}
+
+function strokeVisibleLine(
+  doc: jsPDF,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  rgb: { r: number; g: number; b: number },
+  width: number
+) {
+  doc.setLineCap("round");
+  doc.setLineJoin("round");
+  doc.setDrawColor(15, 23, 42);
+  doc.setLineWidth(width + 0.85);
+  doc.line(x1, y1, x2, y2);
+  doc.setDrawColor(255, 255, 255);
+  doc.setLineWidth(width + 0.35);
+  doc.line(x1, y1, x2, y2);
+  doc.setDrawColor(rgb.r, rgb.g, rgb.b);
+  doc.setLineWidth(width);
+  doc.line(x1, y1, x2, y2);
 }
 
 function clamp(value: number, min: number, max: number) {

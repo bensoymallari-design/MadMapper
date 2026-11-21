@@ -31,12 +31,15 @@ export function AnnotationSettings() {
     <section className="space-y-3">
       <h2 className="border-b border-slate-800 pb-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Annotations</h2>
       <p className="text-xs text-slate-400">
-        Use Text to click anywhere on the wall, or Shape to drag a rectangle, ellipse, or line. Select an item to move it and change its font
-        or color.
+        Use Text to place words, Line to drag a straight line, or Shape for a rectangle, ellipse, or line. Select an item to move it and change
+        its font, color, or thickness.
       </p>
       <div className="grid grid-cols-2 gap-2">
         <Button variant="secondary" onClick={() => setActiveTool("text")}>
           Add text
+        </Button>
+        <Button variant="secondary" onClick={() => setActiveTool("line")}>
+          Add line
         </Button>
         <Button variant="secondary" onClick={() => setActiveTool("shape")}>
           Add shape

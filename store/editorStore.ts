@@ -6,20 +6,24 @@ import { calculateCabinetLayout } from "@/lib/calculations";
 import { buildLabel, findCabinetForModule, getModulesInCabinet, orderModulesForCabinet, parseLabelRange } from "@/lib/labeling";
 import { generatePortMapping } from "@/lib/mapping";
 import { createSampleProject, parseProject, regenerateModuleGeometry, serializeProject } from "@/lib/project";
+import { contentOrigin, normalizeSheet, pageFrames, pagesToCover } from "@/lib/sheet";
 import type {
   CabinetSettings,
   CabinetSequenceDirection,
   CanvasAnnotation,
+  CanvasImage,
   DisplaySettings,
   LedModule,
   LedWallProject,
   MappingSettings,
   ModuleSettings,
   NumberingSettings,
+  PlacedProject,
   PowerLoopRoute,
   PowerSettings,
   RoutingSettings,
   ShapeKind,
+  SheetSettings,
   TitleStyle,
   ToolMode,
   WallSettings
@@ -39,6 +43,8 @@ interface EditorState {
   activePowerRouteId: string | null;
   selectedPowerCabinetId: string | null;
   selectedAnnotationId: string | null;
+  selectedImageId: string | null;
+  selectedPlacedId: string | null;
   shapeKind: ShapeKind;
   selectedColor: string;
   view: ViewState;
@@ -70,6 +76,17 @@ interface EditorState {
   deleteAnnotation: (id: string) => void;
   deleteSelectedAnnotation: () => void;
   bringAnnotationToFront: (id: string) => void;
+  updateSheet: (settings: Partial<SheetSettings>) => void;
+  addPage: () => void;
+  coverPages: () => void;
+  addPlacedProject: (json: string) => void;
+  updatePlacedProject: (id: string, settings: Partial<Pick<PlacedProject, "name" | "x" | "y">>, recordHistory?: boolean) => void;
+  deletePlacedProject: (id: string) => void;
+  addImage: (image: Omit<CanvasImage, "id">) => void;
+  updateImage: (id: string, settings: Partial<Pick<CanvasImage, "name" | "x" | "y" | "width" | "height">>, recordHistory?: boolean) => void;
+  deleteImage: (id: string) => void;
+  selectImage: (id: string | null) => void;
+  selectPlaced: (id: string | null) => void;
   pushHistorySnapshot: () => void;
   setView: (view: Partial<ViewState>) => void;
   selectModule: (id: string, append?: boolean) => void;
@@ -112,6 +129,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   activePowerRouteId: null,
   selectedPowerCabinetId: null,
   selectedAnnotationId: null,
+  selectedImageId: null,
+  selectedPlacedId: null,
   shapeKind: "rect",
   selectedColor: "#2563eb",
   view: {
@@ -317,7 +336,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setShapeKind: (shapeKind) => set({ shapeKind }),
 
-  selectAnnotation: (selectedAnnotationId) => set({ selectedAnnotationId }),
+  selectAnnotation: (selectedAnnotationId) => set({ selectedAnnotationId, selectedImageId: null, selectedPlacedId: null }),
+
+  selectImage: (selectedImageId) => set({ selectedImageId, selectedAnnotationId: null, selectedPlacedId: null, selectedModuleIds: [] }),
+
+  selectPlaced: (selectedPlacedId) => set({ selectedPlacedId, selectedAnnotationId: null, selectedImageId: null, selectedModuleIds: [] }),
 
   addAnnotation: (draft) => {
     const annotation = measureTextAnnotation({
@@ -372,6 +395,115 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         updatedAt: new Date().toISOString()
       };
     }),
+
+  updateSheet: (settings) =>
+    setWithHistory(set, get, (project) => ({
+      ...project,
+      sheet: normalizeSheet({ ...project.sheet, ...settings }),
+      updatedAt: new Date().toISOString()
+    })),
+
+  addPage: () =>
+    setWithHistory(set, get, (project) => ({
+      ...project,
+      sheet: normalizeSheet({ ...project.sheet, pageCount: project.sheet.pageCount + 1, showGuides: true }),
+      updatedAt: new Date().toISOString()
+    })),
+
+  coverPages: () =>
+    setWithHistory(set, get, (project) => {
+      const cover = pagesToCover(project);
+      return {
+        ...project,
+        sheet: normalizeSheet({
+          ...project.sheet,
+          pageCount: cover.pageCount,
+          columns: cover.columns,
+          showGuides: true
+        }),
+        updatedAt: new Date().toISOString()
+      };
+    }),
+
+  addPlacedProject: (json) => {
+    const nested = parseProject(json);
+    const placedProject: LedWallProject = { ...nested, placedProjects: [], images: [] };
+    let placedId = "";
+    setWithHistory(set, get, (project) => {
+      const pageCount = Math.max(project.sheet.pageCount, project.placedProjects.length + 2);
+      const frames = pageFrames({ ...project, sheet: { ...project.sheet, pageCount } });
+      const index = Math.min(project.placedProjects.length + 1, frames.length - 1);
+      const origin = contentOrigin(frames[index]);
+      placedId = `placed-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      return {
+        ...project,
+        sheet: normalizeSheet({ ...project.sheet, pageCount: Math.max(pageCount, index + 1), showGuides: true }),
+        placedProjects: [
+          ...project.placedProjects,
+          {
+            id: placedId,
+            name: placedProject.projectName || `Project ${project.placedProjects.length + 2}`,
+            x: origin.x,
+            y: origin.y,
+            project: placedProject
+          }
+        ],
+        updatedAt: new Date().toISOString()
+      };
+    });
+    set({ selectedPlacedId: placedId, selectedAnnotationId: null, selectedImageId: null, selectedModuleIds: [] });
+  },
+
+  updatePlacedProject: (id, settings, recordHistory = true) => {
+    const apply = (project: LedWallProject) => ({
+      ...project,
+      placedProjects: project.placedProjects.map((placed) => (placed.id === id ? { ...placed, ...settings } : placed)),
+      updatedAt: new Date().toISOString()
+    });
+    if (recordHistory) setWithHistory(set, get, apply);
+    else set((state) => ({ project: apply(state.project) }));
+  },
+
+  deletePlacedProject: (id) => {
+    setWithHistory(set, get, (project) => ({
+      ...project,
+      placedProjects: project.placedProjects.filter((placed) => placed.id !== id),
+      updatedAt: new Date().toISOString()
+    }));
+    if (get().selectedPlacedId === id) set({ selectedPlacedId: null });
+  },
+
+  addImage: (draft) => {
+    const image: CanvasImage = {
+      ...draft,
+      id: `image-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    };
+    setWithHistory(set, get, (project) => ({
+      ...project,
+      images: [...project.images, image],
+      updatedAt: new Date().toISOString()
+    }));
+    set({ selectedImageId: image.id, selectedAnnotationId: null, selectedPlacedId: null, selectedModuleIds: [] });
+  },
+
+  updateImage: (id, settings, recordHistory = true) => {
+    const apply = (project: LedWallProject) => ({
+      ...project,
+      images: project.images.map((image) => (image.id === id ? { ...image, ...settings } : image)),
+      updatedAt: new Date().toISOString()
+    });
+    if (recordHistory) setWithHistory(set, get, apply);
+    else set((state) => ({ project: apply(state.project) }));
+  },
+
+  deleteImage: (id) => {
+    setWithHistory(set, get, (project) => ({
+      ...project,
+      images: project.images.filter((image) => image.id !== id),
+      updatedAt: new Date().toISOString()
+    }));
+    if (get().selectedImageId === id) set({ selectedImageId: null });
+  },
 
   pushHistorySnapshot: () =>
     set((state) => ({
@@ -715,6 +847,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         activePowerRouteId: null,
         selectedPowerCabinetId: null,
         selectedAnnotationId: null,
+        selectedImageId: null,
+        selectedPlacedId: null,
         selectedModuleIds: []
       };
     }),
@@ -731,6 +865,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         activePowerRouteId: null,
         selectedPowerCabinetId: null,
         selectedAnnotationId: null,
+        selectedImageId: null,
+        selectedPlacedId: null,
         selectedModuleIds: []
       };
     })

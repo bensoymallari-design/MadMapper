@@ -10,6 +10,7 @@ import { ProjectManager } from "@/components/editor/ProjectManager";
 import { StatusBar } from "@/components/editor/StatusBar";
 import { WallCanvas } from "@/components/editor/WallCanvas";
 import { AnnotationSettings } from "@/components/editor/panels/AnnotationSettings";
+import { SheetSettingsPanel } from "@/components/editor/panels/SheetSettings";
 import { MappingSettingsPanel } from "@/components/editor/panels/MappingSettings";
 import { ModuleSettingsPanel } from "@/components/editor/panels/ModuleSettings";
 import { WallSettingsPanel } from "@/components/editor/panels/WallSettings";
@@ -59,9 +60,20 @@ export function WallEditor() {
         clearSelection();
         useEditorStore.getState().selectAnnotation(null);
       } else if (event.key === "Delete" || event.key === "Backspace") {
-        if (useEditorStore.getState().selectedAnnotationId) {
+        const state = useEditorStore.getState();
+        if (state.selectedAnnotationId) {
           event.preventDefault();
-          useEditorStore.getState().deleteSelectedAnnotation();
+          state.deleteSelectedAnnotation();
+          return;
+        }
+        if (state.selectedImageId) {
+          event.preventDefault();
+          state.deleteImage(state.selectedImageId);
+          return;
+        }
+        if (state.selectedPlacedId) {
+          event.preventDefault();
+          state.deletePlacedProject(state.selectedPlacedId);
           return;
         }
         updateSelectedModules({ enabled: false, status: "unused" });
@@ -117,6 +129,9 @@ export function WallEditor() {
             </section>
             <CollapsiblePanel title="Project Files" description="New, open, export JSON" defaultOpen>
               <ProjectManager />
+            </CollapsiblePanel>
+            <CollapsiblePanel title="Pages, Projects & Images" description="PDF borders, extra walls, pictures" defaultOpen>
+              <SheetSettingsPanel />
             </CollapsiblePanel>
             <CollapsiblePanel title="Wall & Modules" description="Dimensions, pixels, calculated layout" defaultOpen>
               <WallSettingsPanel />

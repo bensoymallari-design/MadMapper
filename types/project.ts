@@ -24,7 +24,37 @@ export type ToolMode =
   | "power"
   | "cabinet"
   | "measure"
-  | "dimension";
+  | "dimension"
+  | "text"
+  | "shape";
+
+export type ShapeKind = "rect" | "ellipse" | "line";
+
+export interface TitleStyle {
+  fontFamily: string;
+  fontSize: number;
+  color: string;
+  offsetX: number;
+  offsetY: number;
+  maxWidth: number;
+  align: "left" | "center";
+}
+
+export interface CanvasAnnotation {
+  id: string;
+  kind: "text" | ShapeKind;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  text: string;
+  fontFamily: string;
+  fontSize: number;
+  color: string;
+  fill: string;
+  fillOpacity: number;
+  strokeWidth: number;
+}
 
 export interface WallSettings {
   width: number;
@@ -167,6 +197,8 @@ export interface ValidationWarning {
 export interface LedWallProject {
   version: 1;
   projectName: string;
+  titleStyle: TitleStyle;
+  annotations: CanvasAnnotation[];
   wall: WallSettings;
   module: ModuleSettings;
   numbering: NumberingSettings;

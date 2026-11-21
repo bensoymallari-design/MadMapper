@@ -1,12 +1,14 @@
 "use client";
 
 import { AlertTriangle } from "lucide-react";
+import { annotationFonts } from "@/lib/annotations";
 import { calculateLayoutMetrics, validateDimensions } from "@/lib/calculations";
 import { useEditorStore } from "@/store/editorStore";
 import { FieldGroup, NumberInput, SelectInput, TextInput } from "@/components/ui/Field";
 
 export function WallSettingsPanel() {
-  const { project, setProjectName, updateWall, updateModuleSettings, updateCabinet } = useEditorStore();
+  const { project, setProjectName, updateTitleStyle, updateWall, updateModuleSettings, updateCabinet } = useEditorStore();
+  const title = project.titleStyle;
   const metrics = calculateLayoutMetrics(project.wall, project.module, project.modules);
   const warnings = validateDimensions(project.wall, project.module);
 
@@ -16,6 +18,50 @@ export function WallSettingsPanel() {
       <FieldGroup label="Project name">
         <TextInput value={project.projectName} onChange={(event) => setProjectName(event.target.value)} />
       </FieldGroup>
+      <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3">
+        <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Export title</div>
+        <p className="mb-3 text-xs text-slate-500">
+          Size, color, font, offset, and wrap width control the title on PDF, SVG, and PNG so it stays clear of the other export text.
+        </p>
+        <div className="space-y-2">
+          <FieldGroup label="Font">
+            <SelectInput value={title?.fontFamily ?? "Arial"} onChange={(event) => updateTitleStyle({ fontFamily: event.target.value })}>
+              {annotationFonts.map((font) => (
+                <option key={font} value={font}>
+                  {font}
+                </option>
+              ))}
+            </SelectInput>
+          </FieldGroup>
+          <div className="grid grid-cols-2 gap-2">
+            <FieldGroup label="Size (pt)">
+              <NumberInput min={8} value={title?.fontSize ?? 16} onValueChange={(value) => updateTitleStyle({ fontSize: Math.max(8, value) })} />
+            </FieldGroup>
+            <FieldGroup label="Color">
+              <TextInput type="color" value={title?.color ?? "#e0f2fe"} onChange={(event) => updateTitleStyle({ color: event.target.value })} />
+            </FieldGroup>
+            <FieldGroup label="X offset (mm)">
+              <NumberInput allowNegative value={title?.offsetX ?? 0} onValueChange={(value) => updateTitleStyle({ offsetX: value })} />
+            </FieldGroup>
+            <FieldGroup label="Y offset (mm)">
+              <NumberInput allowNegative value={title?.offsetY ?? 0} onValueChange={(value) => updateTitleStyle({ offsetY: value })} />
+            </FieldGroup>
+            <FieldGroup label="Wrap width (mm)">
+              <NumberInput value={title?.maxWidth ?? 0} onValueChange={(value) => updateTitleStyle({ maxWidth: value })} />
+            </FieldGroup>
+            <FieldGroup label="Align">
+              <SelectInput
+                value={title?.align ?? "left"}
+                onChange={(event) => updateTitleStyle({ align: event.target.value as "left" | "center" })}
+              >
+                <option value="left">Left</option>
+                <option value="center">Center</option>
+              </SelectInput>
+            </FieldGroup>
+          </div>
+          <p className="text-[11px] text-slate-500">Wrap width 0 uses the space beside the legend. The specification lines move below the title.</p>
+        </div>
+      </div>
 
       <PanelTitle title="1. Module Size" />
       <div className="grid grid-cols-2 gap-3">

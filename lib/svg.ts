@@ -1,12 +1,19 @@
+import { defaultTitleStyle, formatAcLoopLabel, measureTextAnnotation, wrapText } from "@/lib/annotations";
 import { calculateCabinetLayout, calculateLayoutMetrics } from "@/lib/calculations";
 import { getRainbowModuleColor } from "@/lib/colors";
 import { generatePortMapping } from "@/lib/mapping";
-import type { LedWallProject } from "@/types/project";
+import type { CanvasAnnotation, LedWallProject } from "@/types/project";
 
 export function generateProjectSvg(project: LedWallProject) {
   const metrics = calculateLayoutMetrics(project.wall, project.module, project.modules);
   const scale = 0.12;
-  const margin = 90;
+  const titleStyle = { ...defaultTitleStyle, ...project.titleStyle };
+  const titleMaxWidth = titleStyle.maxWidth > 0 ? titleStyle.maxWidth : Math.max(280, project.wall.width * scale * 0.72);
+  const titleLines = wrapText(project.projectName || "Untitled LED Wall", titleMaxWidth, titleStyle.fontSize);
+  const titleOffset = Math.max(0, titleStyle.offsetY);
+  const titleBlock = Math.max(titleStyle.fontSize, titleOffset + titleLines.length * titleStyle.fontSize * 1.3);
+  const statsY = 34 + titleBlock + 8;
+  const margin = Math.max(110, statsY + 46);
   const width = project.wall.width * scale + margin * 2;
   const height = project.wall.height * scale + margin * 2;
   const mapped = generatePortMapping(
@@ -68,7 +75,7 @@ export function generateProjectSvg(project: LedWallProject) {
                 x: margin + (next.x + next.width / 2) * scale,
                 y: margin + (next.y + next.height / 2) * scale
               };
-              return `<line x1="${start.x}" y1="${start.y}" x2="${end.x}" y2="${end.y}" stroke="${route.color}" stroke-width="3" marker-end="url(#route-arrow)"/>`;
+              return `<line x1="${start.x}" y1="${start.y}" x2="${end.x}" y2="${end.y}" stroke="${route.color}" stroke-width="1.25" marker-end="url(#route-arrow)"/>`;
             })
             .join("");
           const nodes = routeCabinets
@@ -76,16 +83,16 @@ export function generateProjectSvg(project: LedWallProject) {
               if (!cabinet) return "";
               const cx = margin + (cabinet.x + cabinet.width / 2) * scale;
               const cy = margin + (cabinet.y + cabinet.height / 2) * scale;
-              return `<g><circle cx="${cx}" cy="${cy}" r="8" fill="${route.color}" stroke="#f8fafc" stroke-width="1.5"/><text x="${cx}" y="${cy + 3}" text-anchor="middle" font-size="8" fill="#ffffff">${index + 1}</text></g>`;
+              return `<g><circle cx="${cx}" cy="${cy}" r="4.5" fill="${route.color}" stroke="#f8fafc" stroke-width="0.8"/><text x="${cx}" y="${cy + 2}" text-anchor="middle" font-size="5" fill="#ffffff">${index + 1}</text></g>`;
             })
             .join("");
           const first = routeCabinets[0];
           const last = routeCabinets.at(-1);
           const labels =
             project.routing.showLabels && first
-              ? `<text x="${margin + (first.x + first.width / 2) * scale}" y="${margin + (first.y + first.height / 2) * scale - 14}" text-anchor="middle" font-size="9" fill="${route.labelColor ?? "#e0f2fe"}">${escapeXml(route.startLabel)}</text>${
+              ? `<text x="${margin + (first.x + first.width / 2) * scale}" y="${margin + (first.y + first.height / 2) * scale - 8}" text-anchor="middle" font-size="7" fill="${route.labelColor ?? "#e0f2fe"}">${escapeXml(route.startLabel)}</text>${
                   last && last !== first
-                    ? `<text x="${margin + (last.x + last.width / 2) * scale}" y="${margin + (last.y + last.height / 2) * scale + 20}" text-anchor="middle" font-size="9" fill="${route.labelColor ?? "#e0f2fe"}">${escapeXml(`${route.endLabel} / ${route.backupLabel}`)}</text>`
+                    ? `<text x="${margin + (last.x + last.width / 2) * scale}" y="${margin + (last.y + last.height / 2) * scale + 12}" text-anchor="middle" font-size="7" fill="${route.labelColor ?? "#e0f2fe"}">${escapeXml(`${route.endLabel} / ${route.backupLabel}`)}</text>`
                     : ""
                 }`
               : "";
@@ -110,7 +117,7 @@ export function generateProjectSvg(project: LedWallProject) {
           if (!Number.isFinite(count) || count <= 0) return "";
           const x = margin + (cabinet.x + cabinet.width) * scale - 42;
           const y = margin + cabinet.y * scale + 8;
-          return `<g><rect x="${x}" y="${y}" width="38" height="16" fill="#7c2d12" stroke="#fed7aa" stroke-width="1"/><text x="${x + 19}" y="${y + 11}" text-anchor="middle" font-size="8" fill="#fff7ed">PSU x${count}</text></g>`;
+          return `<g><rect x="${x}" y="${y}" width="28" height="12" fill="#7c2d12" stroke="#fed7aa" stroke-width="0.6"/><text x="${x + 14}" y="${y + 8}" text-anchor="middle" font-size="6" fill="#fff7ed">PSU x${count}</text></g>`;
         })
         .join("")
     : "";
@@ -134,24 +141,24 @@ export function generateProjectSvg(project: LedWallProject) {
                 x: margin + (next.x + next.width / 2) * scale,
                 y: margin + (next.y + next.height * 0.72) * scale
               };
-              return `<line x1="${start.x}" y1="${start.y}" x2="${end.x}" y2="${end.y}" stroke="${route.color}" stroke-width="4" marker-end="url(#power-arrow)"/>`;
+              return `<line x1="${start.x}" y1="${start.y}" x2="${end.x}" y2="${end.y}" stroke="${route.color}" stroke-width="1.25" marker-end="url(#power-arrow)"/>`;
             })
             .join("");
           const nodes = routeCabinets
-            .map((cabinet, index) => {
+            .map((cabinet) => {
               if (!cabinet) return "";
               const x = margin + (cabinet.x + cabinet.width / 2) * scale;
               const y = margin + (cabinet.y + cabinet.height * 0.72) * scale - 12;
-              return `<g><rect x="${x - 10}" y="${y - 8}" width="20" height="16" fill="${route.color}" stroke="#fff7ed" stroke-width="1.5"/><text x="${x}" y="${y + 3}" text-anchor="middle" font-size="7" fill="#ffffff">DC${index + 1}</text></g>`;
+              return `<g><rect x="${x - 8}" y="${y - 5}" width="16" height="10" fill="${route.color}" stroke="#fff7ed" stroke-width="0.7"/><text x="${x}" y="${y + 2.5}" text-anchor="middle" font-size="5" fill="#ffffff">AC</text></g>`;
             })
             .join("");
           const first = routeCabinets[0];
           const last = routeCabinets.at(-1);
           const labels =
             power.showLabels && first
-              ? `<text x="${margin + (first.x + first.width / 2) * scale}" y="${margin + (first.y + first.height * 0.72) * scale - 28}" text-anchor="middle" font-size="9" fill="${route.labelColor ?? "#fff7ed"}">${escapeXml(route.sourceLabel)}</text>${
+              ? `<text x="${margin + (first.x + first.width / 2) * scale}" y="${margin + (first.y + first.height * 0.72) * scale - 14}" text-anchor="middle" font-size="7" fill="${route.labelColor ?? "#fff7ed"}">${escapeXml(formatAcLoopLabel(route.sourceLabel))}</text>${
                   last && last !== first
-                    ? `<text x="${margin + (last.x + last.width / 2) * scale}" y="${margin + (last.y + last.height * 0.72) * scale + 28}" text-anchor="middle" font-size="9" fill="${route.labelColor ?? "#fff7ed"}">${escapeXml(route.endLabel)}</text>`
+                    ? `<text x="${margin + (last.x + last.width / 2) * scale}" y="${margin + (last.y + last.height * 0.72) * scale + 16}" text-anchor="middle" font-size="7" fill="${route.labelColor ?? "#fff7ed"}">${escapeXml(formatAcLoopLabel(route.endLabel))}</text>`
                     : ""
                 }`
               : "";
@@ -159,6 +166,16 @@ export function generateProjectSvg(project: LedWallProject) {
         })
         .join("")
     : "";
+
+  const annotationMarkup = (project.annotations ?? []).map((annotation) => renderAnnotation(annotation, margin, scale)).join("");
+  const titleX = margin + titleStyle.offsetX + (titleStyle.align === "center" ? titleMaxWidth / 2 : 0);
+  const titleAnchor = titleStyle.align === "center" ? "middle" : "start";
+  const titleSpans = titleLines
+    .map(
+      (line, index) =>
+        `<tspan x="${titleX}" dy="${index === 0 ? 0 : titleStyle.fontSize * 1.3}">${escapeXml(line)}</tspan>`
+    )
+    .join("");
 
   const pathLines =
     project.display.showDataPaths && project.mapping.enabled
@@ -168,7 +185,7 @@ export function generateProjectSvg(project: LedWallProject) {
               const current = modules.find((module) => module.id === id);
               const next = modules.find((module) => module.id === path.modules[index + 1]);
               if (!current || !next) return "";
-              return `<line x1="${margin + (current.x + current.width / 2) * scale}" y1="${margin + (current.y + current.height / 2) * scale}" x2="${margin + (next.x + next.width / 2) * scale}" y2="${margin + (next.y + next.height / 2) * scale}" stroke="${path.color}" stroke-width="1" marker-end="url(#arrow)"/>`;
+              return `<line x1="${margin + (current.x + current.width / 2) * scale}" y1="${margin + (current.y + current.height / 2) * scale}" x2="${margin + (next.x + next.width / 2) * scale}" y2="${margin + (next.y + next.height / 2) * scale}" stroke="${path.color}" stroke-width="0.8" marker-end="url(#arrow)"/>`;
             })
           )
           .join("")
@@ -177,16 +194,20 @@ export function generateProjectSvg(project: LedWallProject) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
   <defs>
-    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
-      <path d="M0,0 L8,4 L0,8 Z" fill="#38bdf8"/>
+    <marker id="arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L7,3.5 L0,7 Z" fill="context-stroke"/>
     </marker>
-    <marker id="power-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
-      <path d="M0,0 L8,4 L0,8 Z" fill="#f97316"/>
+    <marker id="route-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L7,3.5 L0,7 Z" fill="context-stroke"/>
+    </marker>
+    <marker id="power-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L7,3.5 L0,7 Z" fill="context-stroke"/>
     </marker>
   </defs>
   <rect width="100%" height="100%" fill="#020617"/>
-  <text x="${margin}" y="36" font-size="18" fill="#e0f2fe" font-family="Arial">LED WALL MAPPING - ${escapeXml(project.projectName)}</text>
-  <text x="${margin}" y="58" font-size="10" fill="#94a3b8" font-family="Arial">${project.wall.width} x ${project.wall.height} ${project.wall.unit} | ${metrics.columns} x ${metrics.rows} modules | ${metrics.wallPixelWidth} x ${metrics.wallPixelHeight} px</text>
+  <text x="${margin}" y="20" font-size="11" fill="#7dd3fc" font-family="Arial">LED WALL MAPPING</text>
+  <text x="${titleX}" y="${34 + titleOffset}" font-size="${titleStyle.fontSize}" fill="${titleStyle.color}" font-family="${escapeXml(titleStyle.fontFamily)}" text-anchor="${titleAnchor}">${titleSpans}</text>
+  <text x="${margin}" y="${statsY}" font-size="10" fill="#94a3b8" font-family="Arial">${project.wall.width} x ${project.wall.height} ${project.wall.unit} | ${metrics.columns} x ${metrics.rows} modules | ${metrics.wallPixelWidth} x ${metrics.wallPixelHeight} px</text>
   <line x1="${margin}" y1="${margin - 18}" x2="${margin + project.wall.width * scale}" y2="${margin - 18}" stroke="#94a3b8"/>
   <text x="${margin + (project.wall.width * scale) / 2}" y="${margin - 25}" text-anchor="middle" font-size="10" fill="#cbd5e1">${project.wall.width} ${project.wall.unit}</text>
   <line x1="${margin - 18}" y1="${margin}" x2="${margin - 18}" y2="${margin + project.wall.height * scale}" stroke="#94a3b8"/>
@@ -197,7 +218,39 @@ export function generateProjectSvg(project: LedWallProject) {
   ${receiverRoutes}
   ${powerBadges}
   ${powerRoutes}
+  ${annotationMarkup}
 </svg>`;
+}
+
+function renderAnnotation(annotation: CanvasAnnotation, margin: number, scale: number) {
+  const x = margin + annotation.x * scale;
+  const y = margin + annotation.y * scale;
+  const width = annotation.width * scale;
+  const height = annotation.height * scale;
+  if (annotation.kind === "text") {
+    const measured = measureTextAnnotation(annotation);
+    const lines = measured.text.split("\n");
+    const spans = lines
+      .map(
+        (line, index) =>
+          `<tspan x="${margin + measured.x * scale}" dy="${index === 0 ? 0 : measured.fontSize * scale * 1.25}">${escapeXml(line)}</tspan>`
+      )
+      .join("");
+    return `<text x="${margin + measured.x * scale}" y="${margin + measured.y * scale}" fill="${annotation.color}" font-family="${escapeXml(annotation.fontFamily)}" font-size="${measured.fontSize * scale}">${spans}</text>`;
+  }
+  if (annotation.kind === "line") {
+    return `<line x1="${x}" y1="${y}" x2="${x + width}" y2="${y + height}" stroke="${annotation.color}" stroke-width="${Math.max(0.4, annotation.strokeWidth * scale)}" fill="none"/>`;
+  }
+  const left = width < 0 ? x + width : x;
+  const top = height < 0 ? y + height : y;
+  const shapeWidth = Math.abs(width);
+  const shapeHeight = Math.abs(height);
+  const fill = annotation.fillOpacity > 0 ? annotation.fill : "none";
+  const opacity = annotation.fillOpacity > 0 ? annotation.fillOpacity : 1;
+  if (annotation.kind === "ellipse") {
+    return `<ellipse cx="${left + shapeWidth / 2}" cy="${top + shapeHeight / 2}" rx="${shapeWidth / 2}" ry="${shapeHeight / 2}" fill="${fill}" fill-opacity="${opacity}" stroke="${annotation.color}" stroke-width="${Math.max(0.4, annotation.strokeWidth * scale)}"/>`;
+  }
+  return `<rect x="${left}" y="${top}" width="${shapeWidth}" height="${shapeHeight}" fill="${fill}" fill-opacity="${opacity}" stroke="${annotation.color}" stroke-width="${Math.max(0.4, annotation.strokeWidth * scale)}"/>`;
 }
 
 function escapeXml(value: string) {

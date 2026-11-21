@@ -1,3 +1,4 @@
+import { defaultTitleStyle, formatAcLoopLabel, normalizeAnnotation } from "@/lib/annotations";
 import { calculateModuleCount, calculateModulePosition } from "@/lib/calculations";
 import { generateNumbering } from "@/lib/numbering";
 import type {
@@ -42,6 +43,8 @@ export function createSampleProject(): LedWallProject {
   const project: LedWallProject = {
     version: 1,
     projectName: "Untitled LED Wall",
+    titleStyle: defaultTitleStyle,
+    annotations: [],
     wall: {
       width: 0,
       height: 0,
@@ -175,8 +178,17 @@ export function parseProject(json: string): LedWallProject {
   const parsedDisplay = (parsed as { display?: Partial<LedWallProject["display"]> }).display;
   const parsedRouting = (parsed as { routing?: Partial<LedWallProject["routing"]> }).routing;
   const parsedCabinet = (parsed as { cabinet?: Partial<LedWallProject["cabinet"]> }).cabinet;
+  const parsedTitle = (parsed as { titleStyle?: Partial<LedWallProject["titleStyle"]> }).titleStyle;
+  const parsedAnnotations = (parsed as { annotations?: LedWallProject["annotations"] }).annotations;
   return {
     ...parsed,
+    titleStyle: {
+      ...defaultTitleStyle,
+      ...parsedTitle
+    },
+    annotations: (Array.isArray(parsedAnnotations) ? parsedAnnotations : [])
+      .map((annotation, index) => normalizeAnnotation(annotation, index))
+      .filter((annotation): annotation is NonNullable<typeof annotation> => Boolean(annotation)),
     cabinet: {
       enabled: true,
       mode: "auto",
@@ -215,6 +227,9 @@ export function parseProject(json: string): LedWallProject {
       ...parsedPower,
       routes: (parsedPower?.routes ?? []).map((route) => ({
         ...route,
+        name: formatAcLoopLabel(route.name || "AC loop"),
+        sourceLabel: formatAcLoopLabel(route.sourceLabel || "AC loop"),
+        endLabel: formatAcLoopLabel(route.endLabel || "AC loop end"),
         labelColor: route.labelColor ?? "#fff7ed"
       }))
     }

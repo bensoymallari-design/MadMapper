@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { defaultTitleStyle, measureTextAnnotation } from "@/lib/annotations";
 import { calculateCabinetLayout } from "@/lib/calculations";
 import { buildLabel, findCabinetForModule, getModulesInCabinet, orderModulesForCabinet, parseLabelRange } from "@/lib/labeling";
 import { generatePortMapping } from "@/lib/mapping";
@@ -8,14 +9,18 @@ import { createSampleProject, parseProject, regenerateModuleGeometry, serializeP
 import type {
   CabinetSettings,
   CabinetSequenceDirection,
+  CanvasAnnotation,
   DisplaySettings,
   LedModule,
   LedWallProject,
   MappingSettings,
   ModuleSettings,
   NumberingSettings,
+  PowerLoopRoute,
   PowerSettings,
   RoutingSettings,
+  ShapeKind,
+  TitleStyle,
   ToolMode,
   WallSettings
 } from "@/types/project";
@@ -33,11 +38,14 @@ interface EditorState {
   activeRouteId: string | null;
   activePowerRouteId: string | null;
   selectedPowerCabinetId: string | null;
+  selectedAnnotationId: string | null;
+  shapeKind: ShapeKind;
   selectedColor: string;
   view: ViewState;
   past: LedWallProject[];
   future: LedWallProject[];
   setProjectName: (name: string) => void;
+  updateTitleStyle: (settings: Partial<TitleStyle>) => void;
   updateWall: (settings: Partial<WallSettings>) => void;
   updateModuleSettings: (settings: Partial<ModuleSettings>) => void;
   updateNumbering: (settings: Partial<NumberingSettings>) => void;
@@ -54,6 +62,15 @@ interface EditorState {
   updatePortColor: (port: number, color: string) => void;
   updateReceivingRouteLabelColor: (routeId: string, color: string) => void;
   updatePowerRouteLabelColor: (routeId: string, color: string) => void;
+  updatePowerRoute: (routeId: string, settings: Partial<Pick<PowerLoopRoute, "name" | "sourceLabel" | "endLabel" | "color">>) => void;
+  setShapeKind: (kind: ShapeKind) => void;
+  selectAnnotation: (id: string | null) => void;
+  addAnnotation: (annotation: Omit<CanvasAnnotation, "id">) => void;
+  updateAnnotation: (id: string, settings: Partial<CanvasAnnotation>, recordHistory?: boolean) => void;
+  deleteAnnotation: (id: string) => void;
+  deleteSelectedAnnotation: () => void;
+  bringAnnotationToFront: (id: string) => void;
+  pushHistorySnapshot: () => void;
   setView: (view: Partial<ViewState>) => void;
   selectModule: (id: string, append?: boolean) => void;
   selectModules: (ids: string[], append?: boolean) => void;
@@ -94,6 +111,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   activeRouteId: null,
   activePowerRouteId: null,
   selectedPowerCabinetId: null,
+  selectedAnnotationId: null,
+  shapeKind: "rect",
   selectedColor: "#2563eb",
   view: {
     zoom: 0.08,
@@ -107,6 +126,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     setWithHistory(set, get, (project) => ({
       ...project,
       projectName: name,
+      updatedAt: new Date().toISOString()
+    })),
+
+  updateTitleStyle: (settings) =>
+    setWithHistory(set, get, (project) => ({
+      ...project,
+      titleStyle: { ...defaultTitleStyle, ...project.titleStyle, ...settings },
       updatedAt: new Date().toISOString()
     })),
 
@@ -276,6 +302,81 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         routes: (project.power?.routes ?? []).map((route) => (route.id === routeId ? { ...route, labelColor: color } : route))
       },
       updatedAt: new Date().toISOString()
+    })),
+
+  updatePowerRoute: (routeId, settings) =>
+    setWithHistory(set, get, (project) => ({
+      ...project,
+      power: {
+        ...getDefaultPower(),
+        ...project.power,
+        routes: (project.power?.routes ?? []).map((route) => (route.id === routeId ? { ...route, ...settings } : route))
+      },
+      updatedAt: new Date().toISOString()
+    })),
+
+  setShapeKind: (shapeKind) => set({ shapeKind }),
+
+  selectAnnotation: (selectedAnnotationId) => set({ selectedAnnotationId }),
+
+  addAnnotation: (draft) => {
+    const annotation = measureTextAnnotation({
+      ...draft,
+      id: `annotation-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    });
+    setWithHistory(set, get, (project) => ({
+      ...project,
+      annotations: [...(project.annotations ?? []), annotation],
+      updatedAt: new Date().toISOString()
+    }));
+    set({ selectedAnnotationId: annotation.id, selectedModuleIds: [] });
+    if (annotation.kind === "text") set({ activeTool: "select" });
+  },
+
+  updateAnnotation: (id, settings, recordHistory = true) => {
+    const apply = (project: LedWallProject) => ({
+      ...project,
+      annotations: (project.annotations ?? []).map((annotation) => {
+        if (annotation.id !== id) return annotation;
+        const next = { ...annotation, ...settings };
+        return next.kind === "text" ? measureTextAnnotation(next) : next;
+      }),
+      updatedAt: new Date().toISOString()
+    });
+    if (recordHistory) setWithHistory(set, get, apply);
+    else set((state) => ({ project: apply(state.project) }));
+  },
+
+  deleteAnnotation: (id) => {
+    setWithHistory(set, get, (project) => ({
+      ...project,
+      annotations: (project.annotations ?? []).filter((annotation) => annotation.id !== id),
+      updatedAt: new Date().toISOString()
+    }));
+    if (get().selectedAnnotationId === id) set({ selectedAnnotationId: null });
+  },
+
+  deleteSelectedAnnotation: () => {
+    const id = get().selectedAnnotationId;
+    if (id) get().deleteAnnotation(id);
+  },
+
+  bringAnnotationToFront: (id) =>
+    setWithHistory(set, get, (project) => {
+      const annotations = project.annotations ?? [];
+      const selected = annotations.find((annotation) => annotation.id === id);
+      if (!selected) return project;
+      return {
+        ...project,
+        annotations: [...annotations.filter((annotation) => annotation.id !== id), selected],
+        updatedAt: new Date().toISOString()
+      };
+    }),
+
+  pushHistorySnapshot: () =>
+    set((state) => ({
+      past: [...state.past, cloneProject(state.project)].slice(-HISTORY_LIMIT),
+      future: []
     })),
   setView: (view) => set((state) => ({ view: { ...state.view, ...view } })),
 
@@ -494,12 +595,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           ...(project.power?.routes ?? []),
           {
             id: routeId,
-            name: `DC Power Loop ${nextIndex}`,
+            name: `AC loop ${nextIndex}`,
             color: "#f97316",
             labelColor: "#fff7ed",
             cabinetIds: [],
-            sourceLabel: `DC PSU SOURCE ${nextIndex}`,
-            endLabel: `DC LOOP END ${nextIndex}`
+            sourceLabel: `AC loop ${nextIndex}`,
+            endLabel: `AC loop end ${nextIndex}`
           }
         ]
       },
@@ -569,6 +670,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       activeRouteId: null,
       activePowerRouteId: null,
       selectedPowerCabinetId: null,
+      selectedAnnotationId: null,
       past: [...state.past.slice(-HISTORY_LIMIT + 1), cloneProject(state.project)],
       future: []
     })),
@@ -580,6 +682,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       activeRouteId: null,
       activePowerRouteId: null,
       selectedPowerCabinetId: null,
+      selectedAnnotationId: null,
       past: [...state.past.slice(-HISTORY_LIMIT + 1), cloneProject(state.project)],
       future: []
     })),
@@ -611,6 +714,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         activeRouteId: null,
         activePowerRouteId: null,
         selectedPowerCabinetId: null,
+        selectedAnnotationId: null,
         selectedModuleIds: []
       };
     }),
@@ -626,6 +730,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         activeRouteId: null,
         activePowerRouteId: null,
         selectedPowerCabinetId: null,
+        selectedAnnotationId: null,
         selectedModuleIds: []
       };
     })

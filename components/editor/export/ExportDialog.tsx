@@ -4,23 +4,18 @@ import { X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { FieldGroup, NumberInput, SelectInput } from "@/components/ui/Field";
-import { exportProjectPdf, type PdfExportOptions, type PdfOrientation, type PdfPageSize, type PdfScaleMode } from "@/lib/pdf";
+import { exportProjectPdf, type PdfExportOptions, type PdfScaleMode } from "@/lib/pdf";
+import { readableScalePercent } from "@/lib/sheet";
 import { generateProjectSvg } from "@/lib/svg";
 import { useEditorStore } from "@/store/editorStore";
+import type { SheetSettings } from "@/types/project";
 
 interface ExportDialogProps {
   open: boolean;
   onClose: () => void;
 }
 
-const initialOptions: PdfExportOptions = {
-  pageSize: "a3",
-  customWidth: 420,
-  customHeight: 297,
-  orientation: "landscape",
-  margin: 12,
-  scaleMode: "fit",
-  scalePercent: 100,
+const initialLayers = {
   showHeader: true,
   showLegend: true,
   showDimensions: true,
@@ -32,13 +27,29 @@ const initialOptions: PdfExportOptions = {
 };
 
 export function ExportDialog({ open, onClose }: ExportDialogProps) {
-  const { project } = useEditorStore();
-  const [options, setOptions] = useState<PdfExportOptions>(initialOptions);
+  const { project, updateSheet } = useEditorStore();
+  const [layers, setLayers] = useState(initialLayers);
+  const sheet = project.sheet;
 
   if (!open) return null;
 
-  function update(partial: Partial<PdfExportOptions>) {
-    setOptions((current) => ({ ...current, ...partial }));
+  function updateLayers(partial: Partial<typeof initialLayers>) {
+    setLayers((current) => ({ ...current, ...partial }));
+  }
+
+  function exportPdf() {
+    const current = useEditorStore.getState().project;
+    const options: PdfExportOptions = {
+      pageSize: current.sheet.pageSize,
+      customWidth: current.sheet.customWidth,
+      customHeight: current.sheet.customHeight,
+      orientation: current.sheet.orientation,
+      margin: current.sheet.margin,
+      scaleMode: current.sheet.scaleMode === "custom" ? "custom" : "fit",
+      scalePercent: current.sheet.scalePercent,
+      ...layers
+    };
+    exportProjectPdf(current, options);
   }
 
   function downloadSvg() {
@@ -88,7 +99,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
 
         <div className="grid grid-cols-2 gap-3">
           <FieldGroup label="PDF page size">
-            <SelectInput value={options.pageSize} onChange={(event) => update({ pageSize: event.target.value as PdfPageSize })}>
+            <SelectInput value={sheet.pageSize} onChange={(event) => updateSheet({ pageSize: event.target.value as SheetSettings["pageSize"] })}>
               <option value="a4">A4</option>
               <option value="a3">A3</option>
               <option value="a2">A2</option>
@@ -97,52 +108,63 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
             </SelectInput>
           </FieldGroup>
           <FieldGroup label="Orientation">
-            <SelectInput value={options.orientation} onChange={(event) => update({ orientation: event.target.value as PdfOrientation })}>
+            <SelectInput
+              value={sheet.orientation}
+              onChange={(event) => updateSheet({ orientation: event.target.value as SheetSettings["orientation"] })}
+            >
               <option value="landscape">Landscape</option>
               <option value="portrait">Portrait</option>
             </SelectInput>
           </FieldGroup>
-          {options.pageSize === "custom" && (
+          {sheet.pageSize === "custom" && (
             <>
               <FieldGroup label="Width (mm)">
-                <NumberInput min={80} value={options.customWidth} onValueChange={(value) => update({ customWidth: value })} />
+                <NumberInput min={80} value={sheet.customWidth} onValueChange={(customWidth) => updateSheet({ customWidth })} />
               </FieldGroup>
               <FieldGroup label="Height (mm)">
-                <NumberInput min={80} value={options.customHeight} onValueChange={(value) => update({ customHeight: value })} />
+                <NumberInput min={80} value={sheet.customHeight} onValueChange={(customHeight) => updateSheet({ customHeight })} />
               </FieldGroup>
             </>
           )}
           <FieldGroup label="Margin (mm)">
-            <NumberInput min={8} value={options.margin} onValueChange={(value) => update({ margin: value })} />
+            <NumberInput min={0} value={sheet.margin} onValueChange={(margin) => updateSheet({ margin })} />
           </FieldGroup>
           <FieldGroup label="Scale">
-            <SelectInput value={options.scaleMode} onChange={(event) => update({ scaleMode: event.target.value as PdfScaleMode })}>
-              <option value="fit">Fit on one page</option>
+            <SelectInput
+              value={sheet.scaleMode}
+              onChange={(event) => {
+                const scaleMode = event.target.value as PdfScaleMode;
+                if (scaleMode === "readable") updateSheet({ scaleMode: "custom", scalePercent: readableScalePercent(project) });
+                else if (scaleMode === "custom") updateSheet({ scaleMode: "custom" });
+                else updateSheet({ scaleMode: "fit", scalePercent: 100 });
+              }}
+            >
+              <option value="fit">Fit on page 1</option>
               <option value="readable">Keep labels readable</option>
               <option value="custom">Custom percent</option>
             </SelectInput>
           </FieldGroup>
-          {options.scaleMode === "custom" && (
+          {sheet.scaleMode === "custom" && (
             <FieldGroup label="Scale percent">
-              <NumberInput min={25} value={options.scalePercent} onValueChange={(value) => update({ scalePercent: value })} />
+              <NumberInput min={25} value={sheet.scalePercent} onValueChange={(scalePercent) => updateSheet({ scalePercent })} />
             </FieldGroup>
           )}
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2">
-          <Toggle label="Header and title" checked={options.showHeader} onChange={(checked) => update({ showHeader: checked })} />
-          <Toggle label="Port legend" checked={options.showLegend} onChange={(checked) => update({ showLegend: checked })} />
-          <Toggle label="Dimension lines" checked={options.showDimensions} onChange={(checked) => update({ showDimensions: checked })} />
-          <Toggle label="Module numbers" checked={options.showModuleNumbers} onChange={(checked) => update({ showModuleNumbers: checked })} />
-          <Toggle label="Receiver routes" checked={options.showRoutes} onChange={(checked) => update({ showRoutes: checked })} />
-          <Toggle label="AC loops" checked={options.showPower} onChange={(checked) => update({ showPower: checked })} />
-          <Toggle label="Text and shapes" checked={options.showAnnotations} onChange={(checked) => update({ showAnnotations: checked })} />
-          <Toggle label="Column detail pages" checked={options.detailPages} onChange={(checked) => update({ detailPages: checked })} />
+          <Toggle label="Header and title" checked={layers.showHeader} onChange={(showHeader) => updateLayers({ showHeader })} />
+          <Toggle label="Port legend" checked={layers.showLegend} onChange={(showLegend) => updateLayers({ showLegend })} />
+          <Toggle label="Dimension lines" checked={layers.showDimensions} onChange={(showDimensions) => updateLayers({ showDimensions })} />
+          <Toggle label="Module numbers" checked={layers.showModuleNumbers} onChange={(showModuleNumbers) => updateLayers({ showModuleNumbers })} />
+          <Toggle label="Receiver routes" checked={layers.showRoutes} onChange={(showRoutes) => updateLayers({ showRoutes })} />
+          <Toggle label="AC loops" checked={layers.showPower} onChange={(showPower) => updateLayers({ showPower })} />
+          <Toggle label="Text, lines, and shapes" checked={layers.showAnnotations} onChange={(showAnnotations) => updateLayers({ showAnnotations })} />
+          <Toggle label="Column detail pages" checked={layers.detailPages} onChange={(detailPages) => updateLayers({ detailPages })} />
         </div>
 
         <div className="mt-4 rounded-xl border border-slate-700 bg-slate-950/70 p-3 text-xs text-slate-400">
-          The project title uses the font, color, size, offset, and wrap width from Wall & Modules. Readable scale and custom scale add extra
-          pages when the wall does not fit, instead of shrinking labels until they disappear. Very large walls stay within 8 tiles on each side.
+          The PDF uses the same pages and dashed margin shown on the canvas. Add a page there before placing another project. Images, lines, and
+          extra projects export on the page that contains them.
         </div>
 
         <div className="mt-5 flex justify-end gap-2">
@@ -152,7 +174,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
           <Button variant="secondary" onClick={downloadSvg}>
             Export SVG
           </Button>
-          <Button variant="primary" onClick={() => exportProjectPdf(project, options)}>
+          <Button variant="primary" onClick={exportPdf}>
             Export PDF
           </Button>
         </div>

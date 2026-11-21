@@ -11,6 +11,7 @@ import {
   Maximize,
   Minus,
   MousePointer2,
+  PenLine,
   PlugZap,
   Redo2,
   Route,
@@ -38,6 +39,7 @@ const tools: { id: ToolMode; label: string; icon: React.ComponentType<{ classNam
   { id: "power", label: "AC loop", icon: PlugZap },
   { id: "cabinet", label: "Cabinet", icon: Grid3X3 },
   { id: "text", label: "Text", icon: Type },
+  { id: "line", label: "Line", icon: PenLine },
   { id: "shape", label: "Shape", icon: Shapes },
   { id: "measure", label: "Measure", icon: Map },
   { id: "dimension", label: "Dimension", icon: Settings2 }

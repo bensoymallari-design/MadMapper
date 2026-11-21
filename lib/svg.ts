@@ -2,6 +2,7 @@ import { defaultTitleStyle, formatAcLoopLabel, measureTextAnnotation, wrapText }
 import { calculateCabinetLayout, calculateLayoutMetrics } from "@/lib/calculations";
 import { getRainbowModuleColor } from "@/lib/colors";
 import { generatePortMapping } from "@/lib/mapping";
+import { pageFrames, sheetBounds } from "@/lib/sheet";
 import type { CanvasAnnotation, LedWallProject } from "@/types/project";
 
 export function generateProjectSvg(project: LedWallProject) {
@@ -13,9 +14,19 @@ export function generateProjectSvg(project: LedWallProject) {
   const titleOffset = Math.max(0, titleStyle.offsetY);
   const titleBlock = Math.max(titleStyle.fontSize, titleOffset + titleLines.length * titleStyle.fontSize * 1.3);
   const statsY = 34 + titleBlock + 8;
-  const margin = Math.max(110, statsY + 46);
-  const width = project.wall.width * scale + margin * 2;
-  const height = project.wall.height * scale + margin * 2;
+  const bounds = sheetBounds(project);
+  const pad = 48;
+  const header = Math.max(110, statsY + 20);
+  const minX = Math.min(0, bounds.minX);
+  const minY = Math.min(0, bounds.minY);
+  const maxX = Math.max(project.wall.width, bounds.maxX, 1);
+  const maxY = Math.max(project.wall.height, bounds.maxY, 1);
+  const width = (maxX - minX) * scale + pad * 2;
+  const height = header + (maxY - minY) * scale + pad;
+  const ox = pad - minX * scale;
+  const oy = header - minY * scale;
+  const margin = 0;
+  const wallShift = `translate(${ox + project.sheet.wallX * scale} ${oy + project.sheet.wallY * scale})`;
   const mapped = generatePortMapping(
     project.modules,
     metrics.rows,
@@ -167,8 +178,8 @@ export function generateProjectSvg(project: LedWallProject) {
         .join("")
     : "";
 
-  const annotationMarkup = (project.annotations ?? []).map((annotation) => renderAnnotation(annotation, margin, scale)).join("");
-  const titleX = margin + titleStyle.offsetX + (titleStyle.align === "center" ? titleMaxWidth / 2 : 0);
+  const annotationMarkup = (project.annotations ?? []).map((annotation) => renderAnnotation(annotation, ox, oy, scale)).join("");
+  const titleX = pad + titleStyle.offsetX + (titleStyle.align === "center" ? titleMaxWidth / 2 : 0);
   const titleAnchor = titleStyle.align === "center" ? "middle" : "start";
   const titleSpans = titleLines
     .map(
@@ -205,9 +216,11 @@ export function generateProjectSvg(project: LedWallProject) {
     </marker>
   </defs>
   <rect width="100%" height="100%" fill="#020617"/>
-  <text x="${margin}" y="20" font-size="11" fill="#7dd3fc" font-family="Arial">LED WALL MAPPING</text>
+  <text x="${pad}" y="20" font-size="11" fill="#7dd3fc" font-family="Arial">LED WALL MAPPING</text>
   <text x="${titleX}" y="${34 + titleOffset}" font-size="${titleStyle.fontSize}" fill="${titleStyle.color}" font-family="${escapeXml(titleStyle.fontFamily)}" text-anchor="${titleAnchor}">${titleSpans}</text>
-  <text x="${margin}" y="${statsY}" font-size="10" fill="#94a3b8" font-family="Arial">${project.wall.width} x ${project.wall.height} ${project.wall.unit} | ${metrics.columns} x ${metrics.rows} modules | ${metrics.wallPixelWidth} x ${metrics.wallPixelHeight} px</text>
+  <text x="${pad}" y="${statsY}" font-size="10" fill="#94a3b8" font-family="Arial">${project.wall.width} x ${project.wall.height} ${project.wall.unit} | ${metrics.columns} x ${metrics.rows} modules | ${metrics.wallPixelWidth} x ${metrics.wallPixelHeight} px</text>
+  ${renderPageFrames(project, ox, oy, scale)}
+  <g transform="${wallShift}">
   <line x1="${margin}" y1="${margin - 18}" x2="${margin + project.wall.width * scale}" y2="${margin - 18}" stroke="#94a3b8"/>
   <text x="${margin + (project.wall.width * scale) / 2}" y="${margin - 25}" text-anchor="middle" font-size="10" fill="#cbd5e1">${project.wall.width} ${project.wall.unit}</text>
   <line x1="${margin - 18}" y1="${margin}" x2="${margin - 18}" y2="${margin + project.wall.height * scale}" stroke="#94a3b8"/>
@@ -218,13 +231,70 @@ export function generateProjectSvg(project: LedWallProject) {
   ${receiverRoutes}
   ${powerBadges}
   ${powerRoutes}
+  </g>
+  ${renderPlacedProjects(project, ox, oy, scale)}
+  ${renderImages(project, ox, oy, scale)}
   ${annotationMarkup}
 </svg>`;
 }
 
-function renderAnnotation(annotation: CanvasAnnotation, margin: number, scale: number) {
-  const x = margin + annotation.x * scale;
-  const y = margin + annotation.y * scale;
+function renderPageFrames(project: LedWallProject, ox: number, oy: number, scale: number) {
+  if (!project.sheet.showGuides) return "";
+  return pageFrames(project)
+    .map((frame) => {
+      const x = ox + frame.x * scale;
+      const y = oy + frame.y * scale;
+      const width = frame.width * scale;
+      const height = frame.height * scale;
+      const margin = frame.margin * scale;
+      return `<g><rect x="${x}" y="${y}" width="${width}" height="${height}" fill="none" stroke="#38bdf8" stroke-width="1.4"/><rect x="${x + margin}" y="${y + margin}" width="${Math.max(width - margin * 2, 1)}" height="${Math.max(height - margin * 2, 1)}" fill="none" stroke="#7dd3fc" stroke-width="0.8" stroke-dasharray="7 5"/><text x="${x + 8}" y="${y + 16}" font-size="12" fill="#e0f2fe" font-family="Arial">${frame.label}</text></g>`;
+    })
+    .join("");
+}
+
+function renderImages(project: LedWallProject, ox: number, oy: number, scale: number) {
+  return (project.images ?? [])
+    .map((image) => {
+      const href = image.dataUrl.replace(/"/g, "");
+      return `<image href="${href}" x="${ox + image.x * scale}" y="${oy + image.y * scale}" width="${image.width * scale}" height="${image.height * scale}"/>`;
+    })
+    .join("");
+}
+
+function renderPlacedProjects(project: LedWallProject, ox: number, oy: number, scale: number) {
+  return (project.placedProjects ?? [])
+    .map((placed) => {
+      const originX = ox + placed.x * scale;
+      const originY = oy + placed.y * scale;
+      const metrics = calculateLayoutMetrics(placed.project.wall, placed.project.module, placed.project.modules);
+      const mapped = generatePortMapping(
+        placed.project.modules,
+        metrics.rows,
+        metrics.columns,
+        placed.project.mapping,
+        placed.project.legend.ports
+      );
+      const modules = placed.project.mapping.enabled ? mapped.modules : placed.project.modules;
+      const moduleRects = modules
+        .map((module) => {
+          const disabled = !module.enabled || module.status === "unused";
+          const fill = !disabled
+            ? placed.project.display.rainbowGradient
+              ? getRainbowModuleColor(module, placed.project.wall)
+              : module.color
+            : "#111827";
+          return `<rect x="${originX + module.x * scale}" y="${originY + module.y * scale}" width="${module.width * scale}" height="${module.height * scale}" fill="${fill}" opacity="${disabled ? 0.32 : 0.72}" stroke="#1e293b" stroke-width="0.5"/>`;
+        })
+        .join("");
+      const annotations = (placed.project.annotations ?? []).map((annotation) => renderAnnotation(annotation, originX, originY, scale)).join("");
+      return `<g>${moduleRects}<text x="${originX}" y="${originY - 8}" font-size="11" fill="#e0f2fe" font-family="Arial">${escapeXml(placed.name)}</text>${annotations}</g>`;
+    })
+    .join("");
+}
+
+function renderAnnotation(annotation: CanvasAnnotation, originX: number, originY: number, scale: number) {
+  const x = originX + annotation.x * scale;
+  const y = originY + annotation.y * scale;
   const width = annotation.width * scale;
   const height = annotation.height * scale;
   if (annotation.kind === "text") {
@@ -233,10 +303,10 @@ function renderAnnotation(annotation: CanvasAnnotation, margin: number, scale: n
     const spans = lines
       .map(
         (line, index) =>
-          `<tspan x="${margin + measured.x * scale}" dy="${index === 0 ? 0 : measured.fontSize * scale * 1.25}">${escapeXml(line)}</tspan>`
+          `<tspan x="${originX + measured.x * scale}" dy="${index === 0 ? 0 : measured.fontSize * scale * 1.25}">${escapeXml(line)}</tspan>`
       )
       .join("");
-    return `<text x="${margin + measured.x * scale}" y="${margin + measured.y * scale}" fill="${annotation.color}" font-family="${escapeXml(annotation.fontFamily)}" font-size="${measured.fontSize * scale}">${spans}</text>`;
+    return `<text x="${originX + measured.x * scale}" y="${originY + measured.y * scale}" fill="${annotation.color}" font-family="${escapeXml(annotation.fontFamily)}" font-size="${measured.fontSize * scale}">${spans}</text>`;
   }
   if (annotation.kind === "line") {
     return `<line x1="${x}" y1="${y}" x2="${x + width}" y2="${y + height}" stroke="${annotation.color}" stroke-width="${Math.max(0.4, annotation.strokeWidth * scale)}" fill="none"/>`;

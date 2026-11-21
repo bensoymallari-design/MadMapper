@@ -6,8 +6,9 @@ import { calculateCabinetLayout, calculateLayoutMetrics } from "@/lib/calculatio
 import { getRainbowModuleColor } from "@/lib/colors";
 import { normalizeRect, rectsIntersect, type Point, type Rect } from "@/lib/geometry";
 import { generatePortMapping } from "@/lib/mapping";
+import { pageFrames, sheetBounds } from "@/lib/sheet";
 import { useEditorStore } from "@/store/editorStore";
-import type { CanvasAnnotation } from "@/types/project";
+import type { CanvasAnnotation, CanvasImage, LedWallProject } from "@/types/project";
 import { drawCabinet } from "./CabinetRenderer";
 import { drawModule } from "./ModuleRenderer";
 
@@ -20,7 +21,16 @@ export function WallCanvas() {
   const [selectionRect, setSelectionRect] = useState<Rect | null>(null);
   const [draftShape, setDraftShape] = useState<Pick<CanvasAnnotation, "x" | "y" | "width" | "height"> | null>(null);
   const draftShapeRef = useRef<Pick<CanvasAnnotation, "x" | "y" | "width" | "height"> | null>(null);
-  const annotationDrag = useRef<{ id: string; originX: number; originY: number; startWorld: Point; pushedHistory: boolean } | null>(null);
+  const objectDrag = useRef<{
+    kind: "annotation" | "image" | "placed";
+    id: string;
+    originX: number;
+    originY: number;
+    startWorld: Point;
+    pushedHistory: boolean;
+  } | null>(null);
+  const imageCache = useRef(new Map<string, HTMLImageElement>());
+  const renderRef = useRef<() => void>(() => undefined);
   const [cursorWorld, setCursorWorld] = useState<Point>({ x: 0, y: 0 });
 
   const {
@@ -39,30 +49,25 @@ export function WallCanvas() {
     selectedPowerCabinetId,
     selectPowerCabinet,
     selectedAnnotationId,
+    selectedImageId,
+    selectedPlacedId,
     shapeKind,
     selectedColor,
     selectAnnotation,
+    selectImage,
+    selectPlaced,
     addAnnotation,
     updateAnnotation,
+    updateImage,
+    updatePlacedProject,
     pushHistorySnapshot
   } = useEditorStore();
-
-  const metrics = useMemo(
-    () => calculateLayoutMetrics(project.wall, project.module, project.modules),
-    [project.wall, project.module, project.modules]
-  );
 
   const cabinets = useMemo(
     () => calculateCabinetLayout(project.wall, project.module, project.cabinet),
     [project.wall, project.module, project.cabinet]
   );
 
-  const mapped = useMemo(
-    () => generatePortMapping(project.modules, metrics.rows, metrics.columns, project.mapping, project.legend.ports),
-    [project.modules, metrics.rows, metrics.columns, project.mapping, project.legend.ports]
-  );
-
-  const renderModules = project.mapping.enabled && project.display.showDataPaths ? mapped.modules : project.modules;
   const routing = project.routing ?? { enabled: false, showLabels: true, routes: [] };
   const power = project.power ?? {
     enabled: false,
@@ -77,16 +82,16 @@ export function WallCanvas() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const padding = 72;
-    const zoom = Math.min(
-      (canvas.clientWidth - padding) / Math.max(project.wall.width, 1),
-      (canvas.clientHeight - padding) / Math.max(project.wall.height, 1)
-    );
+    const bounds = sheetBounds(project);
+    const boundsWidth = Math.max(bounds.maxX - bounds.minX, 1);
+    const boundsHeight = Math.max(bounds.maxY - bounds.minY, 1);
+    const zoom = Math.min((canvas.clientWidth - padding) / boundsWidth, (canvas.clientHeight - padding) / boundsHeight);
     setView({
-      zoom: Math.max(0.02, zoom),
-      offsetX: (canvas.clientWidth - project.wall.width * zoom) / 2,
-      offsetY: (canvas.clientHeight - project.wall.height * zoom) / 2
+      zoom: Math.max(0.002, Math.min(2.5, zoom)),
+      offsetX: (canvas.clientWidth - boundsWidth * zoom) / 2 - bounds.minX * zoom,
+      offsetY: (canvas.clientHeight - boundsHeight * zoom) / 2 - bounds.minY * zoom
     });
-  }, [project.wall.height, project.wall.width, setView]);
+  }, [project, setView]);
 
   useEffect(() => {
     const handler = () => fitWall();
@@ -116,6 +121,7 @@ export function WallCanvas() {
   });
 
   function render() {
+    renderRef.current = render;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -135,50 +141,23 @@ export function WallCanvas() {
     ctx.translate(view.offsetX, view.offsetY);
     ctx.scale(view.zoom, view.zoom);
 
-    drawDimensionLines(ctx, project.wall.width, project.wall.height, project.wall.unit, project.display.showDimensions, view.zoom);
-    ctx.fillStyle = "rgba(15, 23, 42, 0.96)";
-    ctx.fillRect(0, 0, project.wall.width, project.wall.height);
+    if (project.sheet.showGuides) drawPageGuides(ctx, pageFrames(project), view.zoom);
 
-    const selected = new Set(selectedModuleIds);
-    renderModules.forEach((module) => {
-      if (!isVisible(module.x, module.y, module.width, module.height, view, width, height)) return;
-      const displayModule = project.display.rainbowGradient
-        ? { ...module, color: getRainbowModuleColor(module, project.wall) }
-        : module;
-      drawModule(ctx, displayModule, {
-        showGrid: project.display.showGrid,
-        showNumbers: project.display.showNumbers,
-        selectedIds: selected,
-        labelColor: project.display.moduleTextColor ?? "#e2e8f0",
-        zoom: view.zoom
-      });
+    ctx.save();
+    ctx.translate(project.sheet.wallX, project.sheet.wallY);
+    paintWall(ctx, project, view.zoom, new Set(selectedModuleIds), activeRouteId, activePowerRouteId, selectedPowerCabinetId);
+    ctx.restore();
+
+    project.placedProjects.forEach((placed) => {
+      ctx.save();
+      ctx.translate(placed.x, placed.y);
+      paintWall(ctx, placed.project, view.zoom, new Set(), null, null, null);
+      drawAnnotations(ctx, placed.project.annotations ?? [], null, view.zoom);
+      if (placed.id === selectedPlacedId) strokeWorldRect(ctx, 0, 0, placed.project.wall.width, placed.project.wall.height, view.zoom);
+      ctx.restore();
     });
 
-    if (project.display.showCabinets) {
-      cabinets.forEach((cabinet) => drawCabinet(ctx, cabinet, view.zoom));
-    }
-
-    if (project.display.showDataPaths && project.mapping.enabled) {
-      drawDataPaths(ctx, mapped, renderModules, view.zoom);
-    }
-
-    if (routing.enabled) {
-      drawReceivingCardRoutes(ctx, routing.routes, cabinets, activeRouteId, routing.showLabels, view.zoom);
-    }
-
-    if (power.enabled) {
-      drawPowerLoopRoutes(ctx, power.routes, cabinets, activePowerRouteId, power.showLabels, view.zoom);
-      drawPowerSupplyBadges(
-        ctx,
-        cabinets,
-        power.cabinetSupplies,
-        power.defaultSuppliesPerCabinet,
-        selectedPowerCabinetId,
-        power.showSupplyBadges,
-        view.zoom
-      );
-    }
-
+    drawCanvasImages(ctx, project.images ?? [], selectedImageId, view.zoom, imageCache.current, () => renderRef.current());
     drawAnnotations(ctx, project.annotations ?? [], selectedAnnotationId, view.zoom);
 
     if (draftShape && (draftShape.width !== 0 || draftShape.height !== 0)) {
@@ -186,7 +165,7 @@ export function WallCanvas() {
         ctx,
         {
           id: "draft",
-          kind: shapeKind,
+          kind: activeTool === "line" ? "line" : shapeKind,
           x: draftShape.x,
           y: draftShape.y,
           width: draftShape.width,
@@ -196,7 +175,7 @@ export function WallCanvas() {
           fontSize: 48,
           color: selectedColor,
           fill: selectedColor,
-          fillOpacity: shapeKind === "line" ? 0 : 0.18,
+          fillOpacity: activeTool === "line" || shapeKind === "line" ? 0 : 0.18,
           strokeWidth: Math.max(8, 2 / view.zoom)
         },
         false,
@@ -242,20 +221,40 @@ export function WallCanvas() {
     };
   }
 
+  function wallLocal(world: Point): Point {
+    return { x: world.x - project.sheet.wallX, y: world.y - project.sheet.wallY };
+  }
+
   function hitTest(world: Point) {
-    const column = Math.floor(world.x / project.module.width);
-    const row = Math.floor(world.y / project.module.height);
+    const local = wallLocal(world);
+    const column = Math.floor(local.x / project.module.width);
+    const row = Math.floor(local.y / project.module.height);
     return project.modules.find((module) => module.row === row && module.column === column);
   }
 
   function hitTestCabinet(world: Point) {
+    const local = wallLocal(world);
     return cabinets.find(
       (cabinet) =>
-        world.x >= cabinet.x &&
-        world.y >= cabinet.y &&
-        world.x <= cabinet.x + cabinet.width &&
-        world.y <= cabinet.y + cabinet.height
+        local.x >= cabinet.x &&
+        local.y >= cabinet.y &&
+        local.x <= cabinet.x + cabinet.width &&
+        local.y <= cabinet.y + cabinet.height
     );
+  }
+
+  function hitTestImage(world: Point) {
+    return [...(project.images ?? [])].reverse().find(
+      (image) => world.x >= image.x && world.y >= image.y && world.x <= image.x + image.width && world.y <= image.y + image.height
+    );
+  }
+
+  function hitTestPlaced(world: Point) {
+    return [...project.placedProjects].reverse().find((placed) => {
+      const width = placed.project.wall.width;
+      const height = placed.project.wall.height;
+      return world.x >= placed.x && world.y >= placed.y && world.x <= placed.x + width && world.y <= placed.y + height;
+    });
   }
 
   function updateDraftShape(next: Pick<CanvasAnnotation, "x" | "y" | "width" | "height"> | null) {
@@ -270,29 +269,37 @@ export function WallCanvas() {
     dragStart.current = point;
     lastPointer.current = point;
     hasDragged.current = false;
-    annotationDrag.current = null;
+    objectDrag.current = null;
 
     if (activeTool === "select" || activeTool === "text") {
       const hit = hitTestAnnotations(project.annotations ?? [], world, view.zoom);
       if (hit) {
         selectAnnotation(hit.id);
         clearSelection();
-        annotationDrag.current = {
-          id: hit.id,
-          originX: hit.x,
-          originY: hit.y,
-          startWorld: world,
-          pushedHistory: false
-        };
+        objectDrag.current = { kind: "annotation", id: hit.id, originX: hit.x, originY: hit.y, startWorld: world, pushedHistory: false };
+        return;
+      }
+      const image = hitTestImage(world);
+      if (image && activeTool === "select") {
+        selectImage(image.id);
+        objectDrag.current = { kind: "image", id: image.id, originX: image.x, originY: image.y, startWorld: world, pushedHistory: false };
+        return;
+      }
+      const placed = hitTestPlaced(world);
+      if (placed && activeTool === "select") {
+        selectPlaced(placed.id);
+        objectDrag.current = { kind: "placed", id: placed.id, originX: placed.x, originY: placed.y, startWorld: world, pushedHistory: false };
         return;
       }
       if (activeTool === "select") {
         selectAnnotation(null);
+        selectImage(null);
+        selectPlaced(null);
         setSelectionRect(null);
       }
     }
 
-    if (activeTool === "shape") {
+    if (activeTool === "shape" || activeTool === "line") {
       updateDraftShape({ x: world.x, y: world.y, width: 0, height: 0 });
     } else if (activeTool === "select") {
       setSelectionRect(null);
@@ -313,28 +320,27 @@ export function WallCanvas() {
       hasDragged.current = true;
     }
 
-    if (annotationDrag.current) {
+    if (objectDrag.current) {
       if (hasDragged.current) {
         const world = screenToWorld(point);
-        const drag = annotationDrag.current;
+        const drag = objectDrag.current;
         if (!drag.pushedHistory) {
           pushHistorySnapshot();
           drag.pushedHistory = true;
         }
-        updateAnnotation(
-          drag.id,
-          {
-            x: drag.originX + (world.x - drag.startWorld.x),
-            y: drag.originY + (world.y - drag.startWorld.y)
-          },
-          false
-        );
+        const next = {
+          x: drag.originX + (world.x - drag.startWorld.x),
+          y: drag.originY + (world.y - drag.startWorld.y)
+        };
+        if (drag.kind === "annotation") updateAnnotation(drag.id, next, false);
+        else if (drag.kind === "image") updateImage(drag.id, next, false);
+        else updatePlacedProject(drag.id, next, false);
       }
       lastPointer.current = point;
       return;
     }
 
-    if (activeTool === "shape" && dragStart.current) {
+    if ((activeTool === "shape" || activeTool === "line") && dragStart.current) {
       const start = screenToWorld(dragStart.current);
       const world = screenToWorld(point);
       updateDraftShape({ x: start.x, y: start.y, width: world.x - start.x, height: world.y - start.y });
@@ -353,8 +359,8 @@ export function WallCanvas() {
     const point = getPoint(event);
     const world = screenToWorld(point);
 
-    if (annotationDrag.current) {
-      annotationDrag.current = null;
+    if (objectDrag.current) {
+      objectDrag.current = null;
       dragStart.current = null;
       lastPointer.current = null;
       hasDragged.current = false;
@@ -383,12 +389,13 @@ export function WallCanvas() {
       return;
     }
 
-    if (activeTool === "shape") {
+    if (activeTool === "shape" || activeTool === "line") {
       const draft = draftShapeRef.current;
+      const kind = activeTool === "line" ? "line" : shapeKind;
       updateDraftShape(null);
       if (draft && (Math.abs(draft.width) > 4 || Math.abs(draft.height) > 4)) {
         addAnnotation({
-          kind: shapeKind,
+          kind,
           x: draft.x,
           y: draft.y,
           width: draft.width,
@@ -398,7 +405,7 @@ export function WallCanvas() {
           fontSize: 48,
           color: selectedColor,
           fill: selectedColor,
-          fillOpacity: shapeKind === "line" ? 0 : 0.18,
+          fillOpacity: kind === "line" ? 0 : 0.18,
           strokeWidth: Math.max(8, 2 / view.zoom)
         });
       }
@@ -421,8 +428,14 @@ export function WallCanvas() {
       }
     } else if (activeTool === "select") {
       if (selectionRect && hasDragged.current) {
+        const localRect = {
+          x: selectionRect.x - project.sheet.wallX,
+          y: selectionRect.y - project.sheet.wallY,
+          width: selectionRect.width,
+          height: selectionRect.height
+        };
         const selected = project.modules
-          .filter((module) => rectsIntersect(selectionRect, module))
+          .filter((module) => rectsIntersect(localRect, module))
           .map((module) => module.id);
         selectModules(selected, event.ctrlKey || event.metaKey);
       } else {
@@ -468,13 +481,127 @@ export function WallCanvas() {
         <div>
           {activeTool === "text"
             ? "Click anywhere to place text. Change the font and color in Annotations."
+            : activeTool === "line"
+              ? "Drag to draw a line. Change the color and thickness in Annotations."
             : activeTool === "shape"
               ? "Drag to draw the selected shape."
-              : "Wheel zoom - Alt drag pan - Drag select"}
+              : "Page borders show the PDF margin. Drag a project or image to place it."}
         </div>
       </div>
     </div>
   );
+}
+
+function paintWall(
+  ctx: CanvasRenderingContext2D,
+  source: LedWallProject,
+  zoom: number,
+  selectedIds: Set<string>,
+  activeRouteId: string | null,
+  activePowerRouteId: string | null,
+  selectedPowerCabinetId: string | null
+) {
+  const metrics = calculateLayoutMetrics(source.wall, source.module, source.modules);
+  const sourceCabinets = calculateCabinetLayout(source.wall, source.module, source.cabinet);
+  const mapped = generatePortMapping(source.modules, metrics.rows, metrics.columns, source.mapping, source.legend.ports);
+  const modules = source.mapping.enabled && source.display.showDataPaths ? mapped.modules : source.modules;
+  const routing = source.routing ?? { enabled: false, showLabels: true, routes: [] };
+  const power = source.power ?? {
+    enabled: false,
+    showLabels: true,
+    showSupplyBadges: false,
+    defaultSuppliesPerCabinet: 1,
+    cabinetSupplies: {},
+    routes: []
+  };
+
+  drawDimensionLines(ctx, source.wall.width, source.wall.height, source.wall.unit, source.display.showDimensions, zoom);
+  ctx.fillStyle = "rgba(15, 23, 42, 0.96)";
+  ctx.fillRect(0, 0, source.wall.width, source.wall.height);
+  modules.forEach((module) => {
+    const displayModule = source.display.rainbowGradient ? { ...module, color: getRainbowModuleColor(module, source.wall) } : module;
+    drawModule(ctx, displayModule, {
+      showGrid: source.display.showGrid,
+      showNumbers: source.display.showNumbers,
+      selectedIds,
+      labelColor: source.display.moduleTextColor ?? "#e2e8f0",
+      zoom
+    });
+  });
+  if (source.display.showCabinets) sourceCabinets.forEach((cabinet) => drawCabinet(ctx, cabinet, zoom));
+  if (source.display.showDataPaths && source.mapping.enabled) drawDataPaths(ctx, mapped, modules, zoom);
+  if (routing.enabled) drawReceivingCardRoutes(ctx, routing.routes, sourceCabinets, activeRouteId, routing.showLabels, zoom);
+  if (power.enabled) {
+    drawPowerLoopRoutes(ctx, power.routes, sourceCabinets, activePowerRouteId, power.showLabels, zoom);
+    drawPowerSupplyBadges(
+      ctx,
+      sourceCabinets,
+      power.cabinetSupplies,
+      power.defaultSuppliesPerCabinet,
+      selectedPowerCabinetId,
+      power.showSupplyBadges,
+      zoom
+    );
+  }
+  ctx.save();
+  ctx.fillStyle = "#e0f2fe";
+  ctx.font = `${Math.max(18 / zoom, 16)}px sans-serif`;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "bottom";
+  ctx.fillText(source.projectName || "Untitled LED Wall", 0, -8 / zoom);
+  ctx.restore();
+}
+
+function drawPageGuides(ctx: CanvasRenderingContext2D, frames: ReturnType<typeof pageFrames>, zoom: number) {
+  frames.forEach((frame) => {
+    ctx.save();
+    ctx.strokeStyle = "#38bdf8";
+    ctx.lineWidth = Math.max(2 / zoom, 1.5);
+    ctx.strokeRect(frame.x, frame.y, frame.width, frame.height);
+    ctx.setLineDash([14 / zoom, 10 / zoom]);
+    ctx.strokeStyle = "#7dd3fc";
+    ctx.strokeRect(frame.x + frame.margin, frame.y + frame.margin, Math.max(frame.width - frame.margin * 2, 1), Math.max(frame.height - frame.margin * 2, 1));
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#e0f2fe";
+    ctx.font = `${Math.max(16 / zoom, 14)}px sans-serif`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(frame.label, frame.x + 10 / zoom, frame.y + 8 / zoom);
+    ctx.restore();
+  });
+}
+
+function strokeWorldRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, zoom: number) {
+  ctx.save();
+  ctx.strokeStyle = "#38bdf8";
+  ctx.lineWidth = Math.max(3 / zoom, 2);
+  ctx.strokeRect(x, y, width, height);
+  ctx.restore();
+}
+
+function drawCanvasImages(
+  ctx: CanvasRenderingContext2D,
+  images: CanvasImage[],
+  selectedId: string | null,
+  zoom: number,
+  cache: Map<string, HTMLImageElement>,
+  onLoad: () => void
+) {
+  images.forEach((image) => {
+    let element = cache.get(image.id);
+    if (!element || element.src !== image.dataUrl) {
+      element = new Image();
+      element.onload = onLoad;
+      element.src = image.dataUrl;
+      cache.set(image.id, element);
+    }
+    if (element.complete && element.naturalWidth > 0) ctx.drawImage(element, image.x, image.y, image.width, image.height);
+    else {
+      ctx.fillStyle = "rgba(15, 23, 42, 0.8)";
+      ctx.fillRect(image.x, image.y, image.width, image.height);
+    }
+    if (image.id === selectedId) strokeWorldRect(ctx, image.x, image.y, image.width, image.height, zoom);
+  });
 }
 
 function drawBackground(ctx: CanvasRenderingContext2D, width: number, height: number) {
@@ -816,10 +943,3 @@ function shortenSegment(start: Point, end: Point, trimStart: number, trimEnd: nu
   };
 }
 
-function isVisible(x: number, y: number, width: number, height: number, view: { zoom: number; offsetX: number; offsetY: number }, canvasWidth: number, canvasHeight: number) {
-  const screenX = x * view.zoom + view.offsetX;
-  const screenY = y * view.zoom + view.offsetY;
-  const screenWidth = width * view.zoom;
-  const screenHeight = height * view.zoom;
-  return screenX + screenWidth >= 0 && screenY + screenHeight >= 0 && screenX <= canvasWidth && screenY <= canvasHeight;
-}

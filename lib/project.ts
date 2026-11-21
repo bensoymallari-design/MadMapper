@@ -1,11 +1,14 @@
 import { defaultTitleStyle, formatAcLoopLabel, normalizeAnnotation } from "@/lib/annotations";
 import { calculateModuleCount, calculateModulePosition } from "@/lib/calculations";
 import { generateNumbering } from "@/lib/numbering";
+import { defaultSheet, normalizeSheet } from "@/lib/sheet";
 import type {
+  CanvasImage,
   LedModule,
   LedWallProject,
   ModuleStatus,
-  NumberingSettings
+  NumberingSettings,
+  PlacedProject
 } from "@/types/project";
 
 export const statusColors: Record<ModuleStatus, string> = {
@@ -45,6 +48,9 @@ export function createSampleProject(): LedWallProject {
     projectName: "Untitled LED Wall",
     titleStyle: defaultTitleStyle,
     annotations: [],
+    sheet: defaultSheet(),
+    placedProjects: [],
+    images: [],
     wall: {
       width: 0,
       height: 0,
@@ -180,6 +186,9 @@ export function parseProject(json: string): LedWallProject {
   const parsedCabinet = (parsed as { cabinet?: Partial<LedWallProject["cabinet"]> }).cabinet;
   const parsedTitle = (parsed as { titleStyle?: Partial<LedWallProject["titleStyle"]> }).titleStyle;
   const parsedAnnotations = (parsed as { annotations?: LedWallProject["annotations"] }).annotations;
+  const parsedPlaced = (parsed as { placedProjects?: PlacedProject[] }).placedProjects;
+  const parsedImages = (parsed as { images?: CanvasImage[] }).images;
+  const parsedSheet = (parsed as { sheet?: Partial<LedWallProject["sheet"]> }).sheet;
   return {
     ...parsed,
     titleStyle: {
@@ -189,6 +198,13 @@ export function parseProject(json: string): LedWallProject {
     annotations: (Array.isArray(parsedAnnotations) ? parsedAnnotations : [])
       .map((annotation, index) => normalizeAnnotation(annotation, index))
       .filter((annotation): annotation is NonNullable<typeof annotation> => Boolean(annotation)),
+    sheet: normalizeSheet(parsedSheet),
+    placedProjects: (Array.isArray(parsedPlaced) ? parsedPlaced : [])
+      .map((placed, index) => normalizePlacedProject(placed, index))
+      .filter((placed): placed is PlacedProject => Boolean(placed)),
+    images: (Array.isArray(parsedImages) ? parsedImages : [])
+      .map((image, index) => normalizeImage(image, index))
+      .filter((image): image is CanvasImage => Boolean(image)),
     cabinet: {
       enabled: true,
       mode: "auto",
@@ -233,5 +249,37 @@ export function parseProject(json: string): LedWallProject {
         labelColor: route.labelColor ?? "#fff7ed"
       }))
     }
+  };
+}
+
+function normalizePlacedProject(value: Partial<PlacedProject> | null, index: number): PlacedProject | null {
+  if (!value?.project) return null;
+  try {
+    const project = parseProject(JSON.stringify({ ...value.project, placedProjects: [], images: [] }));
+    return {
+      id: value.id || `placed-${index + 1}`,
+      name: value.name || project.projectName || `Project ${index + 1}`,
+      x: Number.isFinite(Number(value.x)) ? Number(value.x) : 0,
+      y: Number.isFinite(Number(value.y)) ? Number(value.y) : 0,
+      project
+    };
+  } catch {
+    return null;
+  }
+}
+
+function normalizeImage(value: Partial<CanvasImage> | null, index: number): CanvasImage | null {
+  if (!value || typeof value.dataUrl !== "string" || !value.dataUrl.startsWith("data:image/")) return null;
+  const width = Number(value.width);
+  const height = Number(value.height);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+  return {
+    id: value.id || `image-${index + 1}`,
+    name: value.name || `Image ${index + 1}`,
+    x: Number.isFinite(Number(value.x)) ? Number(value.x) : 0,
+    y: Number.isFinite(Number(value.y)) ? Number(value.y) : 0,
+    width,
+    height,
+    dataUrl: value.dataUrl
   };
 }

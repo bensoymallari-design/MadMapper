@@ -88,8 +88,11 @@ export function exportProjectPdf(project: LedWallProject, options: PdfExportOpti
       if (options.showHeader) drawHeader(doc, project, margin, titleLayout, stats, titleWidth);
       if (options.showLegend) drawLegend(doc, project, pageWidth - margin - 52, margin);
       doc.saveGraphicsState();
-      doc.rect(margin, contentTop, contentWidth, contentHeight);
+      // A style of null keeps the rectangle as a clip path. The default stroke
+      // style would paint and discard the path, and the following clip would hide the wall.
+      doc.rect(margin, contentTop, contentWidth, contentHeight, null);
       doc.clip();
+      doc.discardPath();
       drawDiagram(
         doc,
         project,
@@ -200,9 +203,9 @@ function drawDiagram(
   const wallHeight = project.wall.height * scale;
 
   if (options.showDimensions) {
-    doc.setDrawColor(148, 163, 184);
-    doc.setLineWidth(0.15);
-    doc.setTextColor(203, 213, 225);
+    doc.setDrawColor(71, 85, 105);
+    doc.setLineWidth(0.2);
+    doc.setTextColor(51, 65, 85);
     doc.setFontSize(7);
     doc.line(x, y - 4, x + wallWidth, y - 4);
     doc.text(`${project.wall.width} ${project.wall.unit}`, x + wallWidth / 2, y - 5.5, { align: "center" });
@@ -237,10 +240,14 @@ function drawDiagram(
     }
   });
 
+  doc.setDrawColor(15, 23, 42);
+  doc.setLineWidth(0.35);
+  doc.rect(x, y, wallWidth, wallHeight);
+
   if (project.display.showCabinets) {
     const cabinets = calculateCabinetLayout(project.wall, project.module, project.cabinet);
-    doc.setDrawColor(248, 250, 252);
-    doc.setLineWidth(0.25);
+    doc.setDrawColor(15, 23, 42);
+    doc.setLineWidth(0.3);
     cabinets.forEach((cabinet) => {
       doc.rect(x + cabinet.x * scale, y + cabinet.y * scale, cabinet.width * scale, cabinet.height * scale);
     });

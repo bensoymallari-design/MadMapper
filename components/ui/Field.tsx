@@ -19,12 +19,14 @@ export function NumberInput({
   value,
   onValueChange,
   min = 0,
-  disabled = false
+  disabled = false,
+  allowNegative = false
 }: {
   value: number;
   onValueChange: (value: number) => void;
   min?: number;
   disabled?: boolean;
+  allowNegative?: boolean;
 }) {
   const [focused, setFocused] = useState(false);
   const [draft, setDraft] = useState(String(value));
@@ -41,21 +43,22 @@ export function NumberInput({
       }}
       onBlur={() => {
         setFocused(false);
-        if (draft.trim() === "") {
+        if (draft.trim() === "" || draft === "-" || draft === "." || draft === "-.") {
           onValueChange(0);
         }
       }}
       onChange={(event) => {
         const next = event.target.value;
-        if (!/^\d*\.?\d*$/.test(next)) return;
+        const pattern = allowNegative ? /^-?\d*\.?\d*$/ : /^\d*\.?\d*$/;
+        if (!pattern.test(next)) return;
         setDraft(next);
-        if (next.trim() === "") {
+        if (next.trim() === "" || next === "-" || next === "." || next === "-.") {
           onValueChange(0);
           return;
         }
         const parsed = Number(next);
         if (Number.isFinite(parsed)) {
-          onValueChange(Math.max(min, parsed));
+          onValueChange(allowNegative ? parsed : Math.max(min, parsed));
         }
       }}
     />

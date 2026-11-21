@@ -9,6 +9,7 @@ import { ExportDialog } from "@/components/editor/export/ExportDialog";
 import { ProjectManager } from "@/components/editor/ProjectManager";
 import { StatusBar } from "@/components/editor/StatusBar";
 import { WallCanvas } from "@/components/editor/WallCanvas";
+import { AnnotationSettings } from "@/components/editor/panels/AnnotationSettings";
 import { MappingSettingsPanel } from "@/components/editor/panels/MappingSettings";
 import { ModuleSettingsPanel } from "@/components/editor/panels/ModuleSettings";
 import { WallSettingsPanel } from "@/components/editor/panels/WallSettings";
@@ -34,6 +35,10 @@ export function WallEditor() {
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable)) {
+        return;
+      }
       const modifier = event.ctrlKey || event.metaKey;
       if (modifier && event.key.toLowerCase() === "z" && event.shiftKey) {
         event.preventDefault();
@@ -52,7 +57,13 @@ export function WallEditor() {
         selectAll();
       } else if (event.key === "Escape") {
         clearSelection();
+        useEditorStore.getState().selectAnnotation(null);
       } else if (event.key === "Delete" || event.key === "Backspace") {
+        if (useEditorStore.getState().selectedAnnotationId) {
+          event.preventDefault();
+          useEditorStore.getState().deleteSelectedAnnotation();
+          return;
+        }
         updateSelectedModules({ enabled: false, status: "unused" });
       } else if (event.key === "*" || event.key === "+" || (modifier && event.key === "=")) {
         event.preventDefault();
@@ -110,7 +121,7 @@ export function WallEditor() {
             <CollapsiblePanel title="Wall & Modules" description="Dimensions, pixels, calculated layout" defaultOpen>
               <WallSettingsPanel />
             </CollapsiblePanel>
-            <CollapsiblePanel title="Mapping, Cabinets & Power" description="Signal routes, DC loops, layers">
+            <CollapsiblePanel title="Mapping, Cabinets & Power" description="Signal routes, AC loops, layers">
               <MappingSettingsPanel />
             </CollapsiblePanel>
             <CollapsiblePanel title="Color Legend" description="Port and status colors">
@@ -122,7 +133,10 @@ export function WallEditor() {
           <WallCanvas />
         </section>
         <aside className="panel min-h-0 overflow-y-auto rounded-xl p-4">
-          <ModuleSettingsPanel />
+          <div className="space-y-4">
+            <AnnotationSettings />
+            <ModuleSettingsPanel />
+          </div>
         </aside>
       </div>
       <StatusBar />

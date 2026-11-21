@@ -16,6 +16,8 @@ import {
   Route,
   Save,
   Settings2,
+  Shapes,
+  Type,
   Undo2,
   ZoomIn
 } from "lucide-react";
@@ -33,8 +35,10 @@ const tools: { id: ToolMode; label: string; icon: React.ComponentType<{ classNam
   { id: "pan", label: "Pan", icon: Hand },
   { id: "color", label: "Color", icon: BoxSelect },
   { id: "mapping", label: "Port Mapping", icon: Route },
-  { id: "power", label: "DC Power", icon: PlugZap },
+  { id: "power", label: "AC loop", icon: PlugZap },
   { id: "cabinet", label: "Cabinet", icon: Grid3X3 },
+  { id: "text", label: "Text", icon: Type },
+  { id: "shape", label: "Shape", icon: Shapes },
   { id: "measure", label: "Measure", icon: Map },
   { id: "dimension", label: "Dimension", icon: Settings2 }
 ];
@@ -65,7 +69,7 @@ export function CanvasToolbar({ onOpenExport, onImport }: CanvasToolbarProps) {
         </div>
       </div>
 
-      <div className="hidden items-center gap-1 xl:flex">
+      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
         {tools.map((tool) => {
           const Icon = tool.icon;
           return (
@@ -74,6 +78,7 @@ export function CanvasToolbar({ onOpenExport, onImport }: CanvasToolbarProps) {
               title={tool.label}
               variant={activeTool === tool.id ? "primary" : "ghost"}
               size="sm"
+              className="shrink-0 whitespace-nowrap"
               onClick={() => setActiveTool(tool.id)}
             >
               <Icon className="h-4 w-4" />

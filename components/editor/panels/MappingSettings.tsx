@@ -1,6 +1,7 @@
 "use client";
 
 import { Route } from "lucide-react";
+import { formatAcLoopLabel } from "@/lib/annotations";
 import { Button } from "@/components/ui/Button";
 import { FieldGroup, NumberInput, SelectInput, TextInput } from "@/components/ui/Field";
 import { useEditorStore } from "@/store/editorStore";
@@ -31,7 +32,8 @@ export function MappingSettingsPanel() {
     startPowerLoopRoute,
     finishPowerLoopRoute,
     clearPowerLoopRoutes,
-    setCabinetPowerSupplies
+    setCabinetPowerSupplies,
+    updatePowerRoute
   } = useEditorStore();
   const routing = project.routing ?? { enabled: false, showLabels: true, routes: [] };
   const power = project.power ?? {
@@ -169,7 +171,7 @@ export function MappingSettingsPanel() {
 
       <div className="space-y-3">
         <h2 className="border-b border-slate-800 pb-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
-          DC Power Loop
+          AC loop
         </h2>
         <label className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-200">
           Show power loops
@@ -191,20 +193,19 @@ export function MappingSettingsPanel() {
           <NumberInput value={power.defaultSuppliesPerCabinet} onValueChange={(value) => updatePower({ defaultSuppliesPerCabinet: value })} />
         </FieldGroup>
         <div className="rounded-lg border border-orange-500/30 bg-orange-950/20 p-3 text-xs text-orange-100">
-          Start a DC loop, then click cabinets in the order the low-voltage power jumps cabinet-to-cabinet. Click a cabinet in DC Power mode
-          to edit how many PSUs are mounted in that cabinet. Use Show PSU count badges to show or hide PSU x1/x2/x3 labels while building the
-          layout.
+          Start an AC loop, then click cabinets in the order the mains power jumps cabinet-to-cabinet. Click a cabinet in AC loop mode to edit
+          how many PSUs are mounted in that cabinet. Use Show PSU count badges to show or hide PSU x1/x2/x3 labels while building the layout.
         </div>
         <div className="grid grid-cols-2 gap-2">
           <Button variant={activePowerRouteId ? "primary" : "secondary"} onClick={startPowerLoopRoute}>
-            Start DC loop
+            Start AC loop
           </Button>
           <Button variant="secondary" disabled={!activePowerRouteId} onClick={finishPowerLoopRoute}>
             Finish loop
           </Button>
         </div>
         <Button variant="danger" className="w-full" disabled={power.routes.length === 0} onClick={clearPowerLoopRoutes}>
-          Clear DC loops
+          Clear AC loops
         </Button>
         <FieldGroup label={selectedPowerCabinetId ? `Selected cabinet PSU count` : "Selected cabinet PSU count"}>
           <NumberInput
@@ -234,15 +235,15 @@ export function MappingSettingsPanel() {
             </Button>
           ))}
         </div>
-        {!selectedPowerCabinetId && <div className="text-xs text-slate-500">Click a cabinet with the DC Power tool to edit its PSU count.</div>}
+        {!selectedPowerCabinetId && <div className="text-xs text-slate-500">Click a cabinet with the AC loop tool to edit its PSU count.</div>}
         <div className="space-y-2">
           {power.routes.length === 0 ? (
-            <div className="text-xs text-slate-500">No DC power loops yet.</div>
+            <div className="text-xs text-slate-500">No AC loops yet.</div>
           ) : (
             power.routes.map((route) => (
               <div key={route.id} className="rounded-lg border border-orange-900/60 bg-orange-950/20 p-2 text-xs text-orange-100">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold">{route.name}</span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold">{formatAcLoopLabel(route.name)}</span>
                   <div className="flex items-center gap-2">
                     <span className="h-3 w-3 rounded-full border border-white/30" style={{ backgroundColor: route.color }} />
                     <input
@@ -255,10 +256,21 @@ export function MappingSettingsPanel() {
                   </div>
                 </div>
                 <div className="mt-1 text-orange-200/70">
-                  {route.cabinetIds.length} cabinet{route.cabinetIds.length === 1 ? "" : "s"} in DC loop
+                  {route.cabinetIds.length} cabinet{route.cabinetIds.length === 1 ? "" : "s"} in AC loop
                 </div>
-                <div className="mt-1 text-orange-200/70">
-                  {route.sourceLabel} {"->"} {route.endLabel}
+                <div className="mt-2 grid grid-cols-1 gap-2">
+                  <FieldGroup label="Start label">
+                    <TextInput
+                      value={route.sourceLabel}
+                      onChange={(event) => updatePowerRoute(route.id, { sourceLabel: formatAcLoopLabel(event.target.value) })}
+                    />
+                  </FieldGroup>
+                  <FieldGroup label="End label">
+                    <TextInput
+                      value={route.endLabel}
+                      onChange={(event) => updatePowerRoute(route.id, { endLabel: formatAcLoopLabel(event.target.value) })}
+                    />
+                  </FieldGroup>
                 </div>
               </div>
             ))

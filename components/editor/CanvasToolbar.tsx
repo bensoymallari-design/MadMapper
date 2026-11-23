@@ -23,7 +23,7 @@ import {
   ZoomIn
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { useEditorStore } from "@/store/editorStore";
+import { useEditedProject, useEditorStore } from "@/store/editorStore";
 import type { ToolMode } from "@/types/project";
 
 interface CanvasToolbarProps {
@@ -47,7 +47,6 @@ const tools: { id: ToolMode; label: string; icon: React.ComponentType<{ classNam
 
 export function CanvasToolbar({ onOpenExport, onImport }: CanvasToolbarProps) {
   const {
-    project,
     activeTool,
     view,
     setActiveTool,
@@ -56,8 +55,10 @@ export function CanvasToolbar({ onOpenExport, onImport }: CanvasToolbarProps) {
     redo,
     saveLocal,
     updateSelectedModules,
-    selectedModuleIds
+    selectedModuleIds,
+    selectedPlacedId
   } = useEditorStore();
+  const project = useEditedProject();
 
   return (
     <header className="panel flex h-16 items-center justify-between gap-4 rounded-xl px-4">
@@ -67,7 +68,7 @@ export function CanvasToolbar({ onOpenExport, onImport }: CanvasToolbarProps) {
         </div>
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold tracking-wide text-sky-50">LED WALL MAPPER</div>
-          <div className="truncate text-xs text-slate-400">{project.projectName}</div>
+          <div className="truncate text-xs text-slate-400">{selectedPlacedId ? `Editing ${project.projectName}` : project.projectName}</div>
         </div>
       </div>
 

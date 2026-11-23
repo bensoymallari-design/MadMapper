@@ -4,11 +4,10 @@ import { Route } from "lucide-react";
 import { formatAcLoopLabel } from "@/lib/annotations";
 import { Button } from "@/components/ui/Button";
 import { FieldGroup, NumberInput, SelectInput, TextInput } from "@/components/ui/Field";
-import { useEditorStore } from "@/store/editorStore";
+import { useEditedProject, useEditorStore } from "@/store/editorStore";
 
 export function MappingSettingsPanel() {
   const {
-    project,
     selectedModuleIds,
     activeRouteId,
     activePowerRouteId,
@@ -35,6 +34,7 @@ export function MappingSettingsPanel() {
     setCabinetPowerSupplies,
     updatePowerRoute
   } = useEditorStore();
+  const project = useEditedProject();
   const routing = project.routing ?? { enabled: false, showLabels: true, routes: [] };
   const power = project.power ?? {
     enabled: false,

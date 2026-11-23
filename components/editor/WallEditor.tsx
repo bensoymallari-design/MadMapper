@@ -71,6 +71,10 @@ export function WallEditor() {
           state.deleteImage(state.selectedImageId);
           return;
         }
+        if (state.selectedModuleIds.length > 0) {
+          updateSelectedModules({ enabled: false, status: "unused" });
+          return;
+        }
         if (state.selectedPlacedId) {
           event.preventDefault();
           state.deletePlacedProject(state.selectedPlacedId);

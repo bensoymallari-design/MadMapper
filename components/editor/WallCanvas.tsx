@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { drawAnnotation, drawAnnotations, formatAcLoopLabel, hitTestAnnotations } from "@/lib/annotations";
 import { calculateCabinetLayout, calculateLayoutMetrics } from "@/lib/calculations";
 import { getRainbowModuleColor } from "@/lib/colors";
@@ -42,6 +42,7 @@ export function WallCanvas() {
     originY: number;
     corner?: ResizeCorner;
     fromBody?: boolean;
+    localScale?: number;
     startWorld: Point;
     pushedHistory: boolean;
   } | null>(null);
@@ -78,21 +79,6 @@ export function WallCanvas() {
     updateSheet,
     pushHistorySnapshot
   } = useEditorStore();
-
-  const cabinets = useMemo(
-    () => calculateCabinetLayout(project.wall, project.module, project.cabinet),
-    [project.wall, project.module, project.cabinet]
-  );
-
-  const routing = project.routing ?? { enabled: false, showLabels: true, routes: [] };
-  const power = project.power ?? {
-    enabled: false,
-    showLabels: true,
-    showSupplyBadges: false,
-    defaultSuppliesPerCabinet: 1,
-    cabinetSupplies: {},
-    routes: []
-  };
 
   const fitWall = useCallback(() => {
     const canvas = canvasRef.current;
@@ -163,7 +149,15 @@ export function WallCanvas() {
     ctx.save();
     ctx.translate(project.sheet.wallX, project.sheet.wallY);
     ctx.scale(mainBox.scale, mainBox.scale);
-    paintWall(ctx, project, view.zoom * mainBox.scale, new Set(selectedModuleIds), activeRouteId, activePowerRouteId, selectedPowerCabinetId);
+    paintWall(
+      ctx,
+      project,
+      view.zoom * mainBox.scale,
+      selectedPlacedId ? new Set() : new Set(selectedModuleIds),
+      selectedPlacedId ? null : activeRouteId,
+      selectedPlacedId ? null : activePowerRouteId,
+      selectedPlacedId ? null : selectedPowerCabinetId
+    );
     ctx.restore();
     if (selectedMainWall && mainBox.width > 0 && mainBox.height > 0) {
       strokeWorldRect(ctx, mainBox.x, mainBox.y, mainBox.width, mainBox.height, view.zoom);
@@ -175,8 +169,17 @@ export function WallCanvas() {
       ctx.save();
       ctx.translate(placed.x, placed.y);
       ctx.scale(scale, scale);
-      paintWall(ctx, placed.project, view.zoom * scale, new Set(), null, null, null);
-      drawAnnotations(ctx, placed.project.annotations ?? [], null, view.zoom * scale);
+      const editing = placed.id === selectedPlacedId;
+      paintWall(
+        ctx,
+        placed.project,
+        view.zoom * scale,
+        editing ? new Set(selectedModuleIds) : new Set(),
+        editing ? activeRouteId : null,
+        editing ? activePowerRouteId : null,
+        editing ? selectedPowerCabinetId : null
+      );
+      drawAnnotations(ctx, placed.project.annotations ?? [], editing ? selectedAnnotationId : null, view.zoom * scale);
       ctx.restore();
       if (placed.id === selectedPlacedId) {
         const size = placedSize(placed);
@@ -297,21 +300,37 @@ export function WallCanvas() {
     return project.modules.find((module) => module.row === row && module.column === column);
   }
 
-  function hitTestCabinet(world: Point) {
-    const local = wallLocal(world);
-    return cabinets.find(
-      (cabinet) =>
-        local.x >= cabinet.x &&
-        local.y >= cabinet.y &&
-        local.x <= cabinet.x + cabinet.width &&
-        local.y <= cabinet.y + cabinet.height
-    );
-  }
-
   function hitTestImage(world: Point) {
     return [...(project.images ?? [])].reverse().find(
       (image) => world.x >= image.x && world.y >= image.y && world.x <= image.x + image.width && world.y <= image.y + image.height
     );
+  }
+
+  function placedLocal(placed: PlacedProject, world: Point): Point {
+    const scale = placedScale(placed) || 1;
+    return { x: (world.x - placed.x) / scale, y: (world.y - placed.y) / scale };
+  }
+
+  function moduleAt(source: LedWallProject, local: Point) {
+    if (source.module.width <= 0 || source.module.height <= 0) return undefined;
+    const column = Math.floor(local.x / source.module.width);
+    const row = Math.floor(local.y / source.module.height);
+    return source.modules.find((module) => module.row === row && module.column === column);
+  }
+
+  function cabinetAt(source: LedWallProject, local: Point) {
+    return calculateCabinetLayout(source.wall, source.module, source.cabinet).find(
+      (cabinet) => local.x >= cabinet.x && local.y >= cabinet.y && local.x <= cabinet.x + cabinet.width && local.y <= cabinet.y + cabinet.height
+    );
+  }
+
+  function hitTestPlacedAnnotation(world: Point) {
+    for (const placed of [...project.placedProjects].reverse()) {
+      const local = placedLocal(placed, world);
+      const hit = hitTestAnnotations(placed.project.annotations ?? [], local, view.zoom * (placedScale(placed) || 1));
+      if (hit) return { placed, annotation: hit };
+    }
+    return null;
   }
 
   function hitTestPlaced(world: Point) {
@@ -380,6 +399,22 @@ export function WallCanvas() {
         objectDrag.current = { kind: "image", id: image.id, originX: image.x, originY: image.y, startWorld: world, pushedHistory: false };
         return;
       }
+      const placedAnnotation = hitTestPlacedAnnotation(world);
+      if (placedAnnotation) {
+        selectPlaced(placedAnnotation.placed.id);
+        selectAnnotation(placedAnnotation.annotation.id);
+        clearSelection();
+        objectDrag.current = {
+          kind: "annotation",
+          id: placedAnnotation.annotation.id,
+          originX: placedAnnotation.annotation.x,
+          originY: placedAnnotation.annotation.y,
+          localScale: placedScale(placedAnnotation.placed) || 1,
+          startWorld: world,
+          pushedHistory: false
+        };
+        return;
+      }
       const handle = activeTool === "select" ? hitTestPlacedHandle(world) : null;
       if (handle) {
         const anchor = anchorFor(handle.placed, handle.corner);
@@ -398,7 +433,15 @@ export function WallCanvas() {
       const placed = hitTestPlaced(world);
       if (placed && activeTool === "select") {
         selectPlaced(placed.id);
-        objectDrag.current = { kind: "placed", id: placed.id, originX: placed.x, originY: placed.y, startWorld: world, pushedHistory: false };
+        objectDrag.current = {
+          kind: "placed",
+          id: placed.id,
+          originX: placed.x,
+          originY: placed.y,
+          fromBody: true,
+          startWorld: world,
+          pushedHistory: false
+        };
         return;
       }
       const mainHandle = activeTool === "select" ? hitTestMainHandle(world) : null;
@@ -539,9 +582,10 @@ export function WallCanvas() {
           setSnapGuides(snapped.guides);
           updateSheet({ wallX: snapped.x, wallY: snapped.y }, false);
         } else {
+          const scale = drag.localScale || 1;
           const next = {
-            x: drag.originX + (world.x - drag.startWorld.x),
-            y: drag.originY + (world.y - drag.startWorld.y)
+            x: drag.originX + (world.x - drag.startWorld.x) / scale,
+            y: drag.originY + (world.y - drag.startWorld.y) / scale
           };
           if (drag.kind === "annotation") updateAnnotation(drag.id, next, false);
           else updateImage(drag.id, next, false);
@@ -578,7 +622,11 @@ export function WallCanvas() {
       const dragged = hasDragged.current;
       hasDragged.current = false;
       setSnapGuides({ xs: [], ys: [] });
-      if (drag.kind === "main" && drag.fromBody && !dragged) {
+      if (drag.kind === "placed" && drag.fromBody && !dragged) {
+        const placed = project.placedProjects.find((item) => item.id === drag.id);
+        const hit = placed ? moduleAt(placed.project, placedLocal(placed, world)) : undefined;
+        if (hit) selectModule(hit.id, event.ctrlKey || event.metaKey);
+      } else if (drag.kind === "main" && drag.fromBody && !dragged) {
         const hit = hitTest(world);
         selectMainWall(false);
         if (hit) selectModule(hit.id, event.ctrlKey || event.metaKey);
@@ -588,11 +636,16 @@ export function WallCanvas() {
     }
 
     if (activeTool === "text" && !hasDragged.current) {
-      const fontSize = Math.max(48, (project.module.height || 160) * 0.42);
+      const placed = hitTestPlaced(world);
+      const point = placed ? placedLocal(placed, world) : world;
+      const wall = placed?.project ?? project;
+      if (placed) selectPlaced(placed.id);
+      else selectPlaced(null);
+      const fontSize = Math.max(48, (wall.module.height || 160) * 0.42);
       addAnnotation({
         kind: "text",
-        x: world.x,
-        y: world.y,
+        x: point.x,
+        y: point.y,
         width: fontSize * 2,
         height: fontSize * 1.25,
         text: "Text",
@@ -614,12 +667,22 @@ export function WallCanvas() {
       const kind = activeTool === "line" ? "line" : shapeKind;
       updateDraftShape(null);
       if (draft && (Math.abs(draft.width) > 4 || Math.abs(draft.height) > 4)) {
+        const placed = hitTestPlaced({ x: draft.x, y: draft.y });
+        const local = placed
+          ? (() => {
+              const start = placedLocal(placed, { x: draft.x, y: draft.y });
+              const end = placedLocal(placed, { x: draft.x + draft.width, y: draft.y + draft.height });
+              return { x: start.x, y: start.y, width: end.x - start.x, height: end.y - start.y };
+            })()
+          : draft;
+        if (placed) selectPlaced(placed.id);
+        else selectPlaced(null);
         addAnnotation({
           kind,
-          x: draft.x,
-          y: draft.y,
-          width: draft.width,
-          height: draft.height,
+          x: local.x,
+          y: local.y,
+          width: local.width,
+          height: local.height,
           text: "",
           fontFamily: "Arial",
           fontSize: 48,
@@ -635,32 +698,45 @@ export function WallCanvas() {
       return;
     }
 
-    if (activeTool === "mapping" && routing.enabled && activeRouteId && !hasDragged.current) {
-      const cabinet = hitTestCabinet(world);
+    const placedUnderPointer = hitTestPlaced(world);
+    const activeSource = placedUnderPointer?.project ?? project;
+    const activeLocal = placedUnderPointer ? placedLocal(placedUnderPointer, world) : wallLocal(world);
+    if (placedUnderPointer) selectPlaced(placedUnderPointer.id);
+    else if (hitTestMainBody(world)) selectPlaced(null);
+
+    if (activeTool === "mapping" && activeSource.routing?.enabled && activeRouteId && !hasDragged.current) {
+      const cabinet = cabinetAt(activeSource, activeLocal);
       if (cabinet) {
         addCabinetToActiveRoute(cabinet.id);
       }
-    } else if (activeTool === "power" && power.enabled && !hasDragged.current) {
-      const cabinet = hitTestCabinet(world);
+    } else if (activeTool === "power" && activeSource.power?.enabled && !hasDragged.current) {
+      const cabinet = cabinetAt(activeSource, activeLocal);
       selectPowerCabinet(cabinet?.id ?? null);
       if (cabinet && activePowerRouteId) {
         addCabinetToActivePowerLoop(cabinet.id);
       }
     } else if (activeTool === "select") {
       if (selectionRect && hasDragged.current) {
-        const scale = mainWallBox(project).scale;
-        const localRect = {
-          x: (selectionRect.x - project.sheet.wallX) / scale,
-          y: (selectionRect.y - project.sheet.wallY) / scale,
-          width: selectionRect.width / scale,
-          height: selectionRect.height / scale
-        };
-        const selected = project.modules
-          .filter((module) => rectsIntersect(localRect, module))
-          .map((module) => module.id);
+        const placed = hitTestPlaced({ x: selectionRect.x, y: selectionRect.y });
+        if (placed) selectPlaced(placed.id);
+        else selectPlaced(null);
+        const localRect = placed
+          ? (() => {
+              const origin = placedLocal(placed, { x: selectionRect.x, y: selectionRect.y });
+              const end = placedLocal(placed, { x: selectionRect.x + selectionRect.width, y: selectionRect.y + selectionRect.height });
+              return { x: origin.x, y: origin.y, width: end.x - origin.x, height: end.y - origin.y };
+            })()
+          : {
+              x: (selectionRect.x - project.sheet.wallX) / mainWallBox(project).scale,
+              y: (selectionRect.y - project.sheet.wallY) / mainWallBox(project).scale,
+              width: selectionRect.width / mainWallBox(project).scale,
+              height: selectionRect.height / mainWallBox(project).scale
+            };
+        const source = placed?.project ?? project;
+        const selected = source.modules.filter((module) => rectsIntersect(localRect, module)).map((module) => module.id);
         selectModules(selected, event.ctrlKey || event.metaKey);
       } else {
-        const hit = hitTest(world);
+        const hit = placedUnderPointer ? moduleAt(activeSource, activeLocal) : hitTest(world);
         selectAnnotation(null);
         if (hit) selectModule(hit.id, event.ctrlKey || event.metaKey);
         else clearSelection();
@@ -706,7 +782,7 @@ export function WallCanvas() {
               ? "Drag to draw a line. Change the color and thickness in Annotations."
             : activeTool === "shape"
               ? "Drag to draw the selected shape."
-              : "Click a project name to move it. Drag a corner to resize. Edges snap to the page margin."}
+              : "Click a wall to edit its modules. Drag it onto another page, or drag a corner to resize."}
         </div>
       </div>
     </div>

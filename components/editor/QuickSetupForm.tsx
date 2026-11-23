@@ -2,10 +2,11 @@
 
 import { FieldGroup, NumberInput, SelectInput, TextInput } from "@/components/ui/Field";
 import { calculateLayoutMetrics } from "@/lib/calculations";
-import { useEditorStore } from "@/store/editorStore";
+import { useEditedProject, useEditorStore } from "@/store/editorStore";
 
 export function QuickSetupForm() {
-  const { project, setProjectName, updateWall, updateModuleSettings, updateCabinet } = useEditorStore();
+  const { setProjectName, updateWall, updateModuleSettings, updateCabinet } = useEditorStore();
+  const project = useEditedProject();
   const metrics = calculateLayoutMetrics(project.wall, project.module, project.modules);
 
   return (

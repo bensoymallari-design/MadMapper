@@ -256,11 +256,13 @@ function normalizePlacedProject(value: Partial<PlacedProject> | null, index: num
   if (!value?.project) return null;
   try {
     const project = parseProject(JSON.stringify({ ...value.project, placedProjects: [], images: [] }));
+    const scale = Number(value.scale);
     return {
       id: value.id || `placed-${index + 1}`,
       name: value.name || project.projectName || `Project ${index + 1}`,
       x: Number.isFinite(Number(value.x)) ? Number(value.x) : 0,
       y: Number.isFinite(Number(value.y)) ? Number(value.y) : 0,
+      scale: Number.isFinite(scale) && scale > 0 ? Math.min(20, Math.max(0.05, scale)) : 1,
       project
     };
   } catch {

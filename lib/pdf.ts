@@ -5,7 +5,8 @@ import { annotationBounds, defaultTitleStyle, formatAcLoopLabel, pdfFontFamily }
 import { calculateCabinetLayout, calculateLayoutMetrics } from "@/lib/calculations";
 import { getRainbowModuleColor } from "@/lib/colors";
 import { generatePortMapping } from "@/lib/mapping";
-import { normalizeSheet, pageFrames, pageSizeMm, readableScalePercent, worldPerPdfMm } from "@/lib/sheet";
+import { placedScale } from "@/lib/placement";
+import { effectiveSheet, normalizeSheet, pageFrames, pageSizeMm, readableScalePercent, worldPerPdfMm } from "@/lib/sheet";
 import type { CanvasAnnotation, CanvasImage, LedWallProject } from "@/types/project";
 
 export type PdfPageSize = "a4" | "a3" | "a2" | "a1" | "custom";
@@ -40,27 +41,32 @@ interface DiagramOptions {
 }
 
 export function exportProjectPdf(project: LedWallProject, options: PdfExportOptions) {
-  const sheet = normalizeSheet({
-    ...project.sheet,
-    pageSize: options.pageSize,
-    customWidth: options.customWidth,
-    customHeight: options.customHeight,
-    orientation: options.orientation,
-    margin: options.margin,
-    scaleMode: options.scaleMode === "fit" ? "fit" : "custom",
-    scalePercent:
-      options.scaleMode === "readable"
-        ? readableScalePercent(project)
-        : options.scaleMode === "custom"
-          ? options.scalePercent
-          : 100
+  const sheet = effectiveSheet({
+    ...project,
+    sheet: normalizeSheet({
+      ...project.sheet,
+      pageSize: options.pageSize,
+      customWidth: options.customWidth,
+      customHeight: options.customHeight,
+      orientation: options.orientation,
+      margin: options.margin,
+      scaleMode: options.scaleMode === "fit" ? "fit" : "custom",
+      scalePercent:
+        options.scaleMode === "readable"
+          ? readableScalePercent(project)
+          : options.scaleMode === "custom"
+            ? options.scalePercent
+            : project.sheet.scalePercent
+    })
   });
   const framed = { ...project, sheet };
   const frames = pageFrames(framed);
   const page = pageSizeMm(sheet);
   const pdfScale = 1 / worldPerPdfMm(framed);
   const format: [number, number] = [page.width, page.height];
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format });
+  // Match the orientation to the format so jsPDF does not swap a landscape page into a tall one.
+  const orientation: PdfOrientation = page.width >= page.height ? "landscape" : "portrait";
+  const doc = new jsPDF({ orientation, unit: "mm", format });
   const diagramOptions: DiagramOptions = {
     showDimensions: options.showDimensions,
     showModuleNumbers: options.showModuleNumbers,
@@ -71,31 +77,35 @@ export function exportProjectPdf(project: LedWallProject, options: PdfExportOpti
   };
 
   frames.forEach((frame, index) => {
-    if (index > 0) doc.addPage(format, "portrait");
+    if (index > 0) doc.addPage(format, orientation);
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
     const originX = -frame.x * pdfScale;
     const originY = -frame.y * pdfScale;
+    doc.setLineDashPattern([], 0);
     doc.saveGraphicsState();
-    doc.rect(0, 0, page.width, page.height, null);
+    doc.rect(0, 0, pageWidth, pageHeight, null);
     doc.clip();
     doc.discardPath();
     drawDiagram(doc, project, originX + sheet.wallX * pdfScale, originY + sheet.wallY * pdfScale, pdfScale, diagramOptions);
     framed.placedProjects.forEach((placed) => {
+      const localScale = pdfScale * placedScale(placed);
       const placedX = originX + placed.x * pdfScale;
       const placedY = originY + placed.y * pdfScale;
-      drawDiagram(doc, placed.project, placedX, placedY, pdfScale, diagramOptions);
+      drawDiagram(doc, placed.project, placedX, placedY, localScale, diagramOptions);
       doc.setTextColor(15, 23, 42);
-      doc.setFont("helvetica", "normal");
+      doc.setFont("helvetica", "bold");
       doc.setFontSize(7);
       doc.text(placed.name, placedX, placedY - 2);
-      if (options.showAnnotations) drawAnnotations(doc, placed.project.annotations ?? [], placedX, placedY, pdfScale);
+      if (options.showAnnotations) drawAnnotations(doc, placed.project.annotations ?? [], placedX, placedY, localScale);
     });
     if (options.showAnnotations) drawAnnotations(doc, project.annotations ?? [], originX, originY, pdfScale);
     drawPdfImages(doc, project.images ?? [], originX, originY, pdfScale);
     doc.restoreGraphicsState();
-    drawMarginGuide(doc, sheet.margin, page.width, page.height);
-    if (options.showHeader) drawSheetHeader(doc, project, sheet.margin, page.width);
-    if (options.showLegend) drawCompactLegend(doc, project, page.width - sheet.margin, Math.max(4, sheet.margin * 0.65));
-    drawFooter(doc, index + 1, page.width, page.height, "");
+    drawPageBorder(doc, sheet.margin);
+    if (options.showHeader) drawSheetHeader(doc, project, sheet.margin, pageWidth);
+    if (options.showLegend) drawCompactLegend(doc, project, pageWidth - sheet.margin, Math.max(4, sheet.margin * 0.65));
+    drawFooter(doc, index + 1, pageWidth, pageHeight, "");
   });
 
   if (options.detailPages) {
@@ -151,7 +161,7 @@ function drawDiagram(
       const boxW = module.width * scale;
       const boxH = module.height * scale;
       if (boxW >= 1.6 && boxH >= 1.3 && label) {
-        const textRgb = hexToRgb(project.display.moduleTextColor ?? "#e2e8f0");
+        const textRgb = contrastingText(rgb, hexToRgb(project.display.moduleTextColor ?? "#e2e8f0"));
         const fitted = Math.min(boxH * 0.46, (boxW * 1.35) / Math.max(label.length, 1));
         const fontSize = Math.max(1.7, Math.min(7, fitted));
         doc.setTextColor(textRgb.r, textRgb.g, textRgb.b);
@@ -171,10 +181,15 @@ function drawDiagram(
 
   if (project.display.showCabinets) {
     const cabinets = calculateCabinetLayout(project.wall, project.module, project.cabinet);
-    doc.setDrawColor(15, 23, 42);
-    doc.setLineWidth(0.3);
     cabinets.forEach((cabinet) => {
-      doc.rect(x + cabinet.x * scale, y + cabinet.y * scale, cabinet.width * scale, cabinet.height * scale);
+      const left = x + cabinet.x * scale;
+      const top = y + cabinet.y * scale;
+      const width = cabinet.width * scale;
+      const height = cabinet.height * scale;
+      doc.setDrawColor(15, 23, 42);
+      doc.setLineWidth(0.45);
+      doc.rect(left, top, width, height);
+      drawCabinetLabel(doc, `Cabinet ${cabinet.index}`, left, top, width, height);
     });
   }
 
@@ -416,13 +431,38 @@ function drawCompactLegend(doc: jsPDF, project: LedWallProject, right: number, y
   }
 }
 
-function drawMarginGuide(doc: jsPDF, margin: number, pageWidth: number, pageHeight: number) {
-  if (margin <= 0) return;
-  doc.setDrawColor(148, 163, 184);
-  doc.setLineWidth(0.2);
-  doc.setLineDashPattern([1.4, 1.1], 0);
-  doc.rect(margin, margin, Math.max(pageWidth - margin * 2, 1), Math.max(pageHeight - margin * 2, 1));
+function drawPageBorder(doc: jsPDF, margin: number) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   doc.setLineDashPattern([], 0);
+  doc.setDrawColor(14, 116, 144);
+  doc.setLineWidth(0.45);
+  doc.rect(0.4, 0.4, Math.max(pageWidth - 0.8, 1), Math.max(pageHeight - 0.8, 1));
+  if (margin <= 0) return;
+  doc.setDrawColor(3, 105, 161);
+  doc.setLineWidth(0.3);
+  doc.rect(margin, margin, Math.max(pageWidth - margin * 2, 1), Math.max(pageHeight - margin * 2, 1));
+}
+
+function drawCabinetLabel(doc: jsPDF, label: string, left: number, top: number, width: number, height: number) {
+  if (width < 8 || height < 4) return;
+  const fontSize = Math.max(3.4, Math.min(7.5, height * 0.18));
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(fontSize);
+  const chipW = Math.min(width - 1, doc.getTextWidth(label) + 1.8);
+  const chipH = fontSize * 0.62;
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(15, 23, 42);
+  doc.setLineWidth(0.2);
+  doc.rect(left + 0.45, top + 0.45, chipW, chipH, "FD");
+  doc.setTextColor(15, 23, 42);
+  doc.text(label, left + 0.45 + chipW / 2, top + 0.45 + chipH / 2, { align: "center", baseline: "middle" });
+}
+
+function contrastingText(fill: { r: number; g: number; b: number }, preferred: { r: number; g: number; b: number }) {
+  const luminance = (color: { r: number; g: number; b: number }) => color.r * 0.299 + color.g * 0.587 + color.b * 0.114;
+  if (Math.abs(luminance(fill) - luminance(preferred)) >= 90) return preferred;
+  return luminance(fill) > 160 ? { r: 15, g: 23, b: 42 } : { r: 248, g: 250, b: 252 };
 }
 
 function drawPdfImages(doc: jsPDF, images: CanvasImage[], x: number, y: number, scale: number) {
@@ -507,6 +547,7 @@ function strokeVisibleLine(
   rgb: { r: number; g: number; b: number },
   width: number
 ) {
+  doc.setLineDashPattern([], 0);
   doc.setLineCap("round");
   doc.setLineJoin("round");
   doc.setDrawColor(15, 23, 42);

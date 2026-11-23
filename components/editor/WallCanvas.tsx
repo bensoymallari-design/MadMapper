@@ -6,9 +6,18 @@ import { calculateCabinetLayout, calculateLayoutMetrics } from "@/lib/calculatio
 import { getRainbowModuleColor } from "@/lib/colors";
 import { normalizeRect, rectsIntersect, type Point, type Rect } from "@/lib/geometry";
 import { generatePortMapping } from "@/lib/mapping";
+import {
+  alignmentTargets,
+  placedScale,
+  placedSize,
+  resizePlaced,
+  snapTranslation,
+  type ResizeCorner,
+  type SnapGuides
+} from "@/lib/placement";
 import { pageFrames, sheetBounds } from "@/lib/sheet";
 import { useEditorStore } from "@/store/editorStore";
-import type { CanvasAnnotation, CanvasImage, LedWallProject } from "@/types/project";
+import type { CanvasAnnotation, CanvasImage, LedWallProject, PlacedProject } from "@/types/project";
 import { drawCabinet } from "./CabinetRenderer";
 import { drawModule } from "./ModuleRenderer";
 
@@ -21,17 +30,19 @@ export function WallCanvas() {
   const [selectionRect, setSelectionRect] = useState<Rect | null>(null);
   const [draftShape, setDraftShape] = useState<Pick<CanvasAnnotation, "x" | "y" | "width" | "height"> | null>(null);
   const draftShapeRef = useRef<Pick<CanvasAnnotation, "x" | "y" | "width" | "height"> | null>(null);
-  const objectDrag = useRef<{
-    kind: "annotation" | "image" | "placed";
-    id: string;
-    originX: number;
-    originY: number;
-    startWorld: Point;
-    pushedHistory: boolean;
-  } | null>(null);
   const imageCache = useRef(new Map<string, HTMLImageElement>());
   const renderRef = useRef<() => void>(() => undefined);
   const [cursorWorld, setCursorWorld] = useState<Point>({ x: 0, y: 0 });
+  const [snapGuides, setSnapGuides] = useState<SnapGuides>({ xs: [], ys: [] });
+  const objectDrag = useRef<{
+    kind: "annotation" | "image" | "placed" | "placed-resize";
+    id: string;
+    originX: number;
+    originY: number;
+    corner?: ResizeCorner;
+    startWorld: Point;
+    pushedHistory: boolean;
+  } | null>(null);
 
   const {
     project,
@@ -149,16 +160,23 @@ export function WallCanvas() {
     ctx.restore();
 
     project.placedProjects.forEach((placed) => {
+      const scale = placedScale(placed);
       ctx.save();
       ctx.translate(placed.x, placed.y);
-      paintWall(ctx, placed.project, view.zoom, new Set(), null, null, null);
-      drawAnnotations(ctx, placed.project.annotations ?? [], null, view.zoom);
-      if (placed.id === selectedPlacedId) strokeWorldRect(ctx, 0, 0, placed.project.wall.width, placed.project.wall.height, view.zoom);
+      ctx.scale(scale, scale);
+      paintWall(ctx, placed.project, view.zoom * scale, new Set(), null, null, null);
+      drawAnnotations(ctx, placed.project.annotations ?? [], null, view.zoom * scale);
       ctx.restore();
+      if (placed.id === selectedPlacedId) {
+        const size = placedSize(placed);
+        strokeWorldRect(ctx, placed.x, placed.y, size.width, size.height, view.zoom);
+        drawResizeHandles(ctx, placed.x, placed.y, size.width, size.height, view.zoom);
+      }
     });
 
     drawCanvasImages(ctx, project.images ?? [], selectedImageId, view.zoom, imageCache.current, () => renderRef.current());
     drawAnnotations(ctx, project.annotations ?? [], selectedAnnotationId, view.zoom);
+    drawSnapGuides(ctx, snapGuides, pageFrames(project), view.zoom);
 
     if (draftShape && (draftShape.width !== 0 || draftShape.height !== 0)) {
       drawAnnotation(
@@ -251,10 +269,40 @@ export function WallCanvas() {
 
   function hitTestPlaced(world: Point) {
     return [...project.placedProjects].reverse().find((placed) => {
-      const width = placed.project.wall.width;
-      const height = placed.project.wall.height;
-      return world.x >= placed.x && world.y >= placed.y && world.x <= placed.x + width && world.y <= placed.y + height;
+      const size = placedSize(placed);
+      return world.x >= placed.x && world.y >= placed.y && world.x <= placed.x + size.width && world.y <= placed.y + size.height;
     });
+  }
+
+  function hitTestPlacedHandle(world: Point) {
+    const reach = Math.max(14 / view.zoom, 8);
+    const ordered = [...project.placedProjects].reverse();
+    const selected = ordered.find((placed) => placed.id === selectedPlacedId);
+    const candidates = selected ? [selected, ...ordered.filter((placed) => placed.id !== selected.id)] : ordered;
+    for (const placed of candidates) {
+      const size = placedSize(placed);
+      const corners: Array<{ corner: ResizeCorner; x: number; y: number }> = [
+        { corner: "nw", x: placed.x, y: placed.y },
+        { corner: "ne", x: placed.x + size.width, y: placed.y },
+        { corner: "sw", x: placed.x, y: placed.y + size.height },
+        { corner: "se", x: placed.x + size.width, y: placed.y + size.height }
+      ];
+      const hit = corners.find((corner) => Math.abs(world.x - corner.x) <= reach && Math.abs(world.y - corner.y) <= reach);
+      if (hit) return { placed, corner: hit.corner };
+    }
+    return null;
+  }
+
+  function resizeCursor(corner: ResizeCorner) {
+    return corner === "nw" || corner === "se" ? "nwse-resize" : "nesw-resize";
+  }
+
+  function anchorFor(placed: PlacedProject, corner: ResizeCorner) {
+    const size = placedSize(placed);
+    if (corner === "nw") return { x: placed.x + size.width, y: placed.y + size.height };
+    if (corner === "ne") return { x: placed.x, y: placed.y + size.height };
+    if (corner === "sw") return { x: placed.x + size.width, y: placed.y };
+    return { x: placed.x, y: placed.y };
   }
 
   function updateDraftShape(next: Pick<CanvasAnnotation, "x" | "y" | "width" | "height"> | null) {
@@ -285,6 +333,21 @@ export function WallCanvas() {
         objectDrag.current = { kind: "image", id: image.id, originX: image.x, originY: image.y, startWorld: world, pushedHistory: false };
         return;
       }
+      const handle = activeTool === "select" ? hitTestPlacedHandle(world) : null;
+      if (handle) {
+        const anchor = anchorFor(handle.placed, handle.corner);
+        selectPlaced(handle.placed.id);
+        objectDrag.current = {
+          kind: "placed-resize",
+          id: handle.placed.id,
+          originX: anchor.x,
+          originY: anchor.y,
+          corner: handle.corner,
+          startWorld: world,
+          pushedHistory: false
+        };
+        return;
+      }
       const placed = hitTestPlaced(world);
       if (placed && activeTool === "select") {
         selectPlaced(placed.id);
@@ -308,7 +371,14 @@ export function WallCanvas() {
 
   function handlePointerMove(event: React.PointerEvent<HTMLCanvasElement>) {
     const point = getPoint(event);
-    setCursorWorld(screenToWorld(point));
+    const hoverWorld = screenToWorld(point);
+    setCursorWorld(hoverWorld);
+    const resizing = objectDrag.current?.kind === "placed-resize" ? objectDrag.current.corner : null;
+    const hoverHandle = !resizing && activeTool === "select" ? hitTestPlacedHandle(hoverWorld) : null;
+    if (canvasRef.current) {
+      const corner = resizing ?? hoverHandle?.corner;
+      canvasRef.current.style.cursor = corner ? resizeCursor(corner) : "";
+    }
     const previous = lastPointer.current;
     if (!dragStart.current || !previous) return;
 
@@ -328,13 +398,44 @@ export function WallCanvas() {
           pushHistorySnapshot();
           drag.pushedHistory = true;
         }
-        const next = {
-          x: drag.originX + (world.x - drag.startWorld.x),
-          y: drag.originY + (world.y - drag.startWorld.y)
-        };
-        if (drag.kind === "annotation") updateAnnotation(drag.id, next, false);
-        else if (drag.kind === "image") updateImage(drag.id, next, false);
-        else updatePlacedProject(drag.id, next, false);
+        const current = useEditorStore.getState().project;
+        if (drag.kind === "placed-resize" && drag.corner) {
+          const placed = current.placedProjects.find((item) => item.id === drag.id);
+          if (placed) {
+            const resized = resizePlaced({
+              corner: drag.corner,
+              anchorX: drag.originX,
+              anchorY: drag.originY,
+              wallWidth: placed.project.wall.width,
+              wallHeight: placed.project.wall.height,
+              pointerX: world.x,
+              pointerY: world.y,
+              targets: alignmentTargets(current, drag.id),
+              threshold: Math.max(8, 14 / view.zoom)
+            });
+            setSnapGuides(resized.guides);
+            updatePlacedProject(drag.id, { x: resized.x, y: resized.y, scale: resized.scale }, false);
+          }
+        } else if (drag.kind === "placed") {
+          const placed = current.placedProjects.find((item) => item.id === drag.id);
+          const raw = {
+            x: drag.originX + (world.x - drag.startWorld.x),
+            y: drag.originY + (world.y - drag.startWorld.y)
+          };
+          if (placed) {
+            const size = placedSize(placed);
+            const snapped = snapTranslation(raw.x, raw.y, size.width, size.height, alignmentTargets(current, drag.id), Math.max(8, 14 / view.zoom));
+            setSnapGuides(snapped.guides);
+            updatePlacedProject(drag.id, { x: snapped.x, y: snapped.y }, false);
+          }
+        } else {
+          const next = {
+            x: drag.originX + (world.x - drag.startWorld.x),
+            y: drag.originY + (world.y - drag.startWorld.y)
+          };
+          if (drag.kind === "annotation") updateAnnotation(drag.id, next, false);
+          else updateImage(drag.id, next, false);
+        }
       }
       lastPointer.current = point;
       return;
@@ -364,6 +465,7 @@ export function WallCanvas() {
       dragStart.current = null;
       lastPointer.current = null;
       hasDragged.current = false;
+      setSnapGuides({ xs: [], ys: [] });
       return;
     }
 
@@ -485,7 +587,7 @@ export function WallCanvas() {
               ? "Drag to draw a line. Change the color and thickness in Annotations."
             : activeTool === "shape"
               ? "Drag to draw the selected shape."
-              : "Page borders show the PDF margin. Drag a project or image to place it."}
+              : "Page borders show the PDF margin. Drag a project to move it, or a corner to resize. Edges snap into alignment."}
         </div>
       </div>
     </div>
@@ -556,12 +658,11 @@ function drawPageGuides(ctx: CanvasRenderingContext2D, frames: ReturnType<typeof
   frames.forEach((frame) => {
     ctx.save();
     ctx.strokeStyle = "#38bdf8";
-    ctx.lineWidth = Math.max(2 / zoom, 1.5);
+    ctx.lineWidth = Math.max(2.4 / zoom, 1.6);
     ctx.strokeRect(frame.x, frame.y, frame.width, frame.height);
-    ctx.setLineDash([14 / zoom, 10 / zoom]);
     ctx.strokeStyle = "#7dd3fc";
+    ctx.lineWidth = Math.max(1.4 / zoom, 1);
     ctx.strokeRect(frame.x + frame.margin, frame.y + frame.margin, Math.max(frame.width - frame.margin * 2, 1), Math.max(frame.height - frame.margin * 2, 1));
-    ctx.setLineDash([]);
     ctx.fillStyle = "#e0f2fe";
     ctx.font = `${Math.max(16 / zoom, 14)}px sans-serif`;
     ctx.textAlign = "left";
@@ -569,6 +670,55 @@ function drawPageGuides(ctx: CanvasRenderingContext2D, frames: ReturnType<typeof
     ctx.fillText(frame.label, frame.x + 10 / zoom, frame.y + 8 / zoom);
     ctx.restore();
   });
+}
+
+function drawResizeHandles(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, zoom: number) {
+  const size = Math.max(10 / zoom, 7);
+  const corners = [
+    [x, y],
+    [x + width, y],
+    [x, y + height],
+    [x + width, y + height]
+  ];
+  ctx.save();
+  corners.forEach(([cx, cy]) => {
+    ctx.fillStyle = "#f8fafc";
+    ctx.strokeStyle = "#0284c7";
+    ctx.lineWidth = Math.max(1.5 / zoom, 1);
+    ctx.fillRect(cx - size / 2, cy - size / 2, size, size);
+    ctx.strokeRect(cx - size / 2, cy - size / 2, size, size);
+  });
+  ctx.restore();
+}
+
+function drawSnapGuides(ctx: CanvasRenderingContext2D, guides: SnapGuides, frames: ReturnType<typeof pageFrames>, zoom: number) {
+  if (guides.xs.length === 0 && guides.ys.length === 0) return;
+  const bounds = frames.reduce(
+    (box, frame) => ({
+      minX: Math.min(box.minX, frame.x),
+      minY: Math.min(box.minY, frame.y),
+      maxX: Math.max(box.maxX, frame.x + frame.width),
+      maxY: Math.max(box.maxY, frame.y + frame.height)
+    }),
+    { minX: 0, minY: 0, maxX: 1, maxY: 1 }
+  );
+  ctx.save();
+  ctx.strokeStyle = "rgba(125, 211, 252, 0.95)";
+  ctx.lineWidth = Math.max(1.5 / zoom, 1);
+  ctx.setLineDash([10 / zoom, 7 / zoom]);
+  guides.xs.forEach((x) => {
+    ctx.beginPath();
+    ctx.moveTo(x, bounds.minY);
+    ctx.lineTo(x, bounds.maxY);
+    ctx.stroke();
+  });
+  guides.ys.forEach((y) => {
+    ctx.beginPath();
+    ctx.moveTo(bounds.minX, y);
+    ctx.lineTo(bounds.maxX, y);
+    ctx.stroke();
+  });
+  ctx.restore();
 }
 
 function strokeWorldRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, zoom: number) {

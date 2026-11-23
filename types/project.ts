@@ -52,6 +52,7 @@ export interface SheetSettings {
   scaleMode: "fit" | "custom";
   scalePercent: number;
   showGuides: boolean;
+  lockOrientation: boolean;
   wallX: number;
   wallY: number;
 }
@@ -61,6 +62,8 @@ export interface PlacedProject {
   name: string;
   x: number;
   y: number;
+  /** Multiplier on the project's own millimeter size. 1 keeps the original wall size. */
+  scale: number;
   project: LedWallProject;
 }
 

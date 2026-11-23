@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { FieldGroup, NumberInput, SelectInput } from "@/components/ui/Field";
 import { exportProjectPdf, type PdfExportOptions, type PdfScaleMode } from "@/lib/pdf";
-import { readableScalePercent } from "@/lib/sheet";
+import { effectiveSheet, readableScalePercent } from "@/lib/sheet";
 import { generateProjectSvg } from "@/lib/svg";
 import { useEditorStore } from "@/store/editorStore";
 import type { SheetSettings } from "@/types/project";
@@ -30,6 +30,7 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
   const { project, updateSheet } = useEditorStore();
   const [layers, setLayers] = useState(initialLayers);
   const sheet = project.sheet;
+  const fitted = effectiveSheet(project);
 
   if (!open) return null;
 
@@ -109,8 +110,8 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
           </FieldGroup>
           <FieldGroup label="Orientation">
             <SelectInput
-              value={sheet.orientation}
-              onChange={(event) => updateSheet({ orientation: event.target.value as SheetSettings["orientation"] })}
+              value={fitted.orientation}
+              onChange={(event) => updateSheet({ orientation: event.target.value as SheetSettings["orientation"], lockOrientation: true })}
             >
               <option value="landscape">Landscape</option>
               <option value="portrait">Portrait</option>
@@ -134,8 +135,14 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
               value={sheet.scaleMode}
               onChange={(event) => {
                 const scaleMode = event.target.value as PdfScaleMode;
-                if (scaleMode === "readable") updateSheet({ scaleMode: "custom", scalePercent: readableScalePercent(project) });
-                else if (scaleMode === "custom") updateSheet({ scaleMode: "custom" });
+                if (scaleMode === "readable") {
+                  updateSheet({
+                    scaleMode: "custom",
+                    scalePercent: readableScalePercent(project),
+                    orientation: fitted.orientation,
+                    lockOrientation: true
+                  });
+                } else if (scaleMode === "custom") updateSheet({ scaleMode: "custom", orientation: fitted.orientation, lockOrientation: true });
                 else updateSheet({ scaleMode: "fit", scalePercent: 100 });
               }}
             >
@@ -163,8 +170,8 @@ export function ExportDialog({ open, onClose }: ExportDialogProps) {
         </div>
 
         <div className="mt-4 rounded-xl border border-slate-700 bg-slate-950/70 p-3 text-xs text-slate-400">
-          The PDF uses the same pages and dashed margin shown on the canvas. Add a page there before placing another project. Images, lines, and
-          extra projects export on the page that contains them.
+          The PDF uses the same pages and margin shown on the canvas. Cabinet names, receiver routes, and AC loops stay on the sheet. Images,
+          lines, and extra projects export on the page that contains them.
         </div>
 
         <div className="mt-5 flex justify-end gap-2">

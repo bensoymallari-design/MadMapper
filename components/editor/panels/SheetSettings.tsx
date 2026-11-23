@@ -5,7 +5,7 @@ import { useRef } from "react";
 import { Button } from "@/components/ui/Button";
 import { FieldGroup, NumberInput, SelectInput } from "@/components/ui/Field";
 import { prepareImageFile } from "@/lib/images";
-import { pageFrames, pagesToCover, readableScalePercent } from "@/lib/sheet";
+import { effectiveSheet, pageFrames, pagesToCover, readableScalePercent } from "@/lib/sheet";
 import { useEditorStore } from "@/store/editorStore";
 import type { SheetSettings } from "@/types/project";
 
@@ -21,6 +21,7 @@ export function SheetSettingsPanel() {
     coverPages,
     addPlacedProject,
     updatePlacedProject,
+    fitPlacedProject,
     deletePlacedProject,
     addImage,
     updateImage,
@@ -29,6 +30,7 @@ export function SheetSettingsPanel() {
     selectPlaced
   } = useEditorStore();
   const sheet = project.sheet;
+  const fitted = effectiveSheet(project);
   const frames = pageFrames(project);
   const cover = pagesToCover(project);
 
@@ -50,8 +52,8 @@ export function SheetSettingsPanel() {
   return (
     <section className="space-y-3">
       <p className="text-xs text-slate-400">
-        Page borders match the PDF. The dashed line is the margin, so anything inside it prints on that page. Add pages, then drop another
-        project or an image where it fits.
+        Page borders match the PDF. The inner line is the margin, so anything inside it prints on that page. A new project is fitted to
+        that area. Drag it to move, or drag a corner to resize. Edges snap to the margin and to other walls.
       </p>
       <div className="grid grid-cols-2 gap-2">
         <FieldGroup label="Page size">
@@ -68,8 +70,8 @@ export function SheetSettingsPanel() {
         </FieldGroup>
         <FieldGroup label="Orientation">
           <SelectInput
-            value={sheet.orientation}
-            onChange={(event) => updateSheet({ orientation: event.target.value as SheetSettings["orientation"] })}
+            value={fitted.orientation}
+            onChange={(event) => updateSheet({ orientation: event.target.value as SheetSettings["orientation"], lockOrientation: true })}
           >
             <option value="landscape">Landscape</option>
             <option value="portrait">Portrait</option>
@@ -96,7 +98,11 @@ export function SheetSettingsPanel() {
             value={sheet.scaleMode}
             onChange={(event) => {
               const scaleMode = event.target.value === "custom" ? "custom" : "fit";
-              updateSheet(scaleMode === "fit" ? { scaleMode, scalePercent: 100 } : { scaleMode });
+              updateSheet(
+                scaleMode === "fit"
+                  ? { scaleMode, scalePercent: 100 }
+                  : { scaleMode, orientation: fitted.orientation, lockOrientation: true }
+              );
             }}
           >
             <option value="fit">Fit on page 1</option>
@@ -115,6 +121,13 @@ export function SheetSettingsPanel() {
           <NumberInput allowNegative value={sheet.wallY} onValueChange={(wallY) => updateSheet({ wallY })} />
         </FieldGroup>
       </div>
+      {sheet.lockOrientation ? (
+        <button type="button" className="text-xs text-sky-300" onClick={() => updateSheet({ lockOrientation: false })}>
+          Match the page to the wall
+        </button>
+      ) : (
+        <p className="text-xs text-slate-500">One fitted page follows the wall, so the border wraps the project instead of leaving an empty sheet.</p>
+      )}
       <label className="flex items-center justify-between rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-200">
         Show page borders
         <input type="checkbox" checked={sheet.showGuides} onChange={(event) => updateSheet({ showGuides: event.target.checked })} />
@@ -160,11 +173,23 @@ export function SheetSettingsPanel() {
                   <FieldGroup label="Y">
                     <NumberInput allowNegative value={placed.y} onValueChange={(y) => updatePlacedProject(placed.id, { y })} />
                   </FieldGroup>
+                  <FieldGroup label="Scale %">
+                    <NumberInput
+                      min={5}
+                      value={Math.round((placed.scale || 1) * 100)}
+                      onValueChange={(percent) => updatePlacedProject(placed.id, { scale: Math.min(2000, Math.max(5, percent)) / 100 })}
+                    />
+                  </FieldGroup>
                 </div>
-                <Button className="mt-2" variant="ghost" size="sm" onClick={() => deletePlacedProject(placed.id)}>
-                  <Trash2 className="h-4 w-4" />
-                  Remove
-                </Button>
+                <div className="mt-2 flex gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => fitPlacedProject(placed.id)}>
+                    Fit & align
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => deletePlacedProject(placed.id)}>
+                    <Trash2 className="h-4 w-4" />
+                    Remove
+                  </Button>
+                </div>
               </div>
             ))
           )}

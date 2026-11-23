@@ -5,8 +5,9 @@ import { defaultTitleStyle, measureTextAnnotation } from "@/lib/annotations";
 import { calculateCabinetLayout } from "@/lib/calculations";
 import { buildLabel, findCabinetForModule, getModulesInCabinet, orderModulesForCabinet, parseLabelRange } from "@/lib/labeling";
 import { generatePortMapping } from "@/lib/mapping";
+import { fitPlacedInFrame, frameContaining, placedSize } from "@/lib/placement";
 import { createSampleProject, parseProject, regenerateModuleGeometry, serializeProject } from "@/lib/project";
-import { contentOrigin, normalizeSheet, pageFrames, pagesToCover } from "@/lib/sheet";
+import { effectiveSheet, normalizeSheet, pageFrames, pagesToCover } from "@/lib/sheet";
 import type {
   CabinetSettings,
   CabinetSequenceDirection,
@@ -80,7 +81,8 @@ interface EditorState {
   addPage: () => void;
   coverPages: () => void;
   addPlacedProject: (json: string) => void;
-  updatePlacedProject: (id: string, settings: Partial<Pick<PlacedProject, "name" | "x" | "y">>, recordHistory?: boolean) => void;
+  updatePlacedProject: (id: string, settings: Partial<Pick<PlacedProject, "name" | "x" | "y" | "scale">>, recordHistory?: boolean) => void;
+  fitPlacedProject: (id: string) => void;
   deletePlacedProject: (id: string) => void;
   addImage: (image: Omit<CanvasImage, "id">) => void;
   updateImage: (id: string, settings: Partial<Pick<CanvasImage, "name" | "x" | "y" | "width" | "height">>, recordHistory?: boolean) => void;
@@ -404,22 +406,27 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     })),
 
   addPage: () =>
-    setWithHistory(set, get, (project) => ({
-      ...project,
-      sheet: normalizeSheet({ ...project.sheet, pageCount: project.sheet.pageCount + 1, showGuides: true }),
-      updatedAt: new Date().toISOString()
-    })),
+    setWithHistory(set, get, (project) => {
+      const fitted = effectiveSheet(project);
+      return {
+        ...project,
+        sheet: normalizeSheet({ ...fitted, pageCount: fitted.pageCount + 1, showGuides: true, lockOrientation: true }),
+        updatedAt: new Date().toISOString()
+      };
+    }),
 
   coverPages: () =>
     setWithHistory(set, get, (project) => {
-      const cover = pagesToCover(project);
+      const fitted = effectiveSheet(project);
+      const cover = pagesToCover({ ...project, sheet: { ...fitted, lockOrientation: true } });
       return {
         ...project,
         sheet: normalizeSheet({
-          ...project.sheet,
+          ...fitted,
           pageCount: cover.pageCount,
           columns: cover.columns,
-          showGuides: true
+          showGuides: true,
+          lockOrientation: true
         }),
         updatedAt: new Date().toISOString()
       };
@@ -430,21 +437,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const placedProject: LedWallProject = { ...nested, placedProjects: [], images: [] };
     let placedId = "";
     setWithHistory(set, get, (project) => {
-      const pageCount = Math.max(project.sheet.pageCount, project.placedProjects.length + 2);
-      const frames = pageFrames({ ...project, sheet: { ...project.sheet, pageCount } });
+      const fitted = effectiveSheet(project);
+      const pageCount = Math.max(fitted.pageCount, project.placedProjects.length + 2);
+      const frames = pageFrames({ ...project, sheet: { ...fitted, pageCount, lockOrientation: true } });
       const index = Math.min(project.placedProjects.length + 1, frames.length - 1);
-      const origin = contentOrigin(frames[index]);
+      const fittedPlacement = fitPlacedInFrame(placedProject.wall.width, placedProject.wall.height, frames[index]);
       placedId = `placed-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       return {
         ...project,
-        sheet: normalizeSheet({ ...project.sheet, pageCount: Math.max(pageCount, index + 1), showGuides: true }),
+        sheet: normalizeSheet({ ...fitted, pageCount: Math.max(pageCount, index + 1), showGuides: true, lockOrientation: true }),
         placedProjects: [
           ...project.placedProjects,
           {
             id: placedId,
             name: placedProject.projectName || `Project ${project.placedProjects.length + 2}`,
-            x: origin.x,
-            y: origin.y,
+            ...fittedPlacement,
             project: placedProject
           }
         ],
@@ -453,6 +460,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
     set({ selectedPlacedId: placedId, selectedAnnotationId: null, selectedImageId: null, selectedModuleIds: [] });
   },
+
+  fitPlacedProject: (id) =>
+    setWithHistory(set, get, (project) => {
+      const frames = pageFrames(project);
+      return {
+        ...project,
+        placedProjects: project.placedProjects.map((placed) => {
+          if (placed.id !== id || frames.length === 0) return placed;
+          const size = placedSize(placed);
+          const frame = frameContaining(frames, placed.x + size.width / 2, placed.y + size.height / 2);
+          return { ...placed, ...fitPlacedInFrame(placed.project.wall.width, placed.project.wall.height, frame) };
+        }),
+        updatedAt: new Date().toISOString()
+      };
+    }),
 
   updatePlacedProject: (id, settings, recordHistory = true) => {
     const apply = (project: LedWallProject) => ({

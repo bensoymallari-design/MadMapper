@@ -20,6 +20,7 @@ export function defaultSheet(): SheetSettings {
     scaleMode: "fit",
     scalePercent: 100,
     showGuides: true,
+    lockOrientation: false,
     wallX: 0,
     wallY: 0
   };
@@ -40,9 +41,32 @@ export function normalizeSheet(value?: Partial<SheetSettings> | null): SheetSett
     scaleMode: sheet.scaleMode === "custom" ? "custom" : "fit",
     scalePercent: clamp(Number(sheet.scalePercent) || 100, 25, 800),
     showGuides: sheet.showGuides !== false,
+    lockOrientation: sheet.lockOrientation === true,
     wallX: Number.isFinite(Number(sheet.wallX)) ? Number(sheet.wallX) : 0,
     wallY: Number.isFinite(Number(sheet.wallY)) ? Number(sheet.wallY) : 0
   };
+}
+
+/**
+ * A single fitted page follows the wall, so a wide wall is not stranded
+ * at the top of a tall empty sheet. An explicit orientation choice stays put.
+ */
+export function effectiveSheet(project: LedWallProject): SheetSettings {
+  const sheet = normalizeSheet(project.sheet);
+  if (sheet.lockOrientation || sheet.scaleMode !== "fit" || sheet.pageCount > 1 || (project.placedProjects?.length ?? 0) > 0) {
+    return sheet;
+  }
+  const orientation = orientationThatFits(project.wall.width, project.wall.height, sheet);
+  return orientation === sheet.orientation ? sheet : { ...sheet, orientation };
+}
+
+export function orientationThatFits(width: number, height: number, sheet: SheetSettings): "landscape" | "portrait" {
+  const landscape = pageSizeMm({ ...sheet, orientation: "landscape" });
+  const wallRatio = Math.max(width, 1) / Math.max(height, 1);
+  const landRatio = landscape.width / landscape.height;
+  const landGap = Math.abs(Math.log(wallRatio / landRatio));
+  const portGap = Math.abs(Math.log(wallRatio / (1 / landRatio)));
+  return landGap <= portGap ? "landscape" : "portrait";
 }
 
 export interface PageFrame {
@@ -65,7 +89,7 @@ export function pageSizeMm(sheet: SheetSettings) {
 
 /** World millimeters represented by one millimeter on the PDF page. */
 export function worldPerPdfMm(project: LedWallProject) {
-  const sheet = normalizeSheet(project.sheet);
+  const sheet = effectiveSheet(project);
   const page = pageSizeMm(sheet);
   const margin = usableMargin(sheet, page);
   const contentW = Math.max(1, page.width - margin * 2);
@@ -89,7 +113,7 @@ export function readableScalePercent(project: LedWallProject) {
 }
 
 export function pageFrames(project: LedWallProject): PageFrame[] {
-  const sheet = normalizeSheet(project.sheet);
+  const sheet = effectiveSheet(project);
   const page = pageSizeMm(sheet);
   const world = worldPerPdfMm(project);
   const width = page.width * world;
@@ -128,7 +152,14 @@ export function contentBounds(project: LedWallProject): Bounds {
     { x: sheet.wallX, y: sheet.wallY, width: Math.max(project.wall.width, 0), height: Math.max(project.wall.height, 0) }
   ];
   for (const placed of project.placedProjects ?? []) {
-    boxes.push({ x: placed.x, y: placed.y, width: placed.project.wall.width, height: placed.project.wall.height });
+    const scale = Number(placed.scale);
+    const safe = Number.isFinite(scale) && scale > 0 ? scale : 1;
+    boxes.push({
+      x: placed.x,
+      y: placed.y,
+      width: Math.max(placed.project.wall.width, 0) * safe,
+      height: Math.max(placed.project.wall.height, 0) * safe
+    });
   }
   for (const image of project.images ?? []) {
     boxes.push(image);
@@ -149,9 +180,10 @@ export function sheetBounds(project: LedWallProject): Bounds {
 }
 
 export function pagesToCover(project: LedWallProject) {
+  const sheet = effectiveSheet(project);
   const probe = pageFrames({
     ...project,
-    sheet: { ...normalizeSheet(project.sheet), pageCount: 1, columns: 1 }
+    sheet: { ...sheet, pageCount: 1, columns: 1, lockOrientation: true }
   })[0];
   const bounds = contentBounds(project);
   const pagesX = Math.max(1, Math.ceil((bounds.maxX - probe.x) / probe.width - 1e-6));

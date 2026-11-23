@@ -247,7 +247,7 @@ function renderPageFrames(project: LedWallProject, ox: number, oy: number, scale
       const width = frame.width * scale;
       const height = frame.height * scale;
       const margin = frame.margin * scale;
-      return `<g><rect x="${x}" y="${y}" width="${width}" height="${height}" fill="none" stroke="#38bdf8" stroke-width="1.4"/><rect x="${x + margin}" y="${y + margin}" width="${Math.max(width - margin * 2, 1)}" height="${Math.max(height - margin * 2, 1)}" fill="none" stroke="#7dd3fc" stroke-width="0.8" stroke-dasharray="7 5"/><text x="${x + 8}" y="${y + 16}" font-size="12" fill="#e0f2fe" font-family="Arial">${frame.label}</text></g>`;
+      return `<g><rect x="${x}" y="${y}" width="${width}" height="${height}" fill="none" stroke="#38bdf8" stroke-width="1.6"/><rect x="${x + margin}" y="${y + margin}" width="${Math.max(width - margin * 2, 1)}" height="${Math.max(height - margin * 2, 1)}" fill="none" stroke="#7dd3fc" stroke-width="1"/><text x="${x + 8}" y="${y + 16}" font-size="12" fill="#e0f2fe" font-family="Arial">${frame.label}</text></g>`;
     })
     .join("");
 }
@@ -264,6 +264,8 @@ function renderImages(project: LedWallProject, ox: number, oy: number, scale: nu
 function renderPlacedProjects(project: LedWallProject, ox: number, oy: number, scale: number) {
   return (project.placedProjects ?? [])
     .map((placed) => {
+      const placedScale = Number(placed.scale);
+      const local = scale * (Number.isFinite(placedScale) && placedScale > 0 ? placedScale : 1);
       const originX = ox + placed.x * scale;
       const originY = oy + placed.y * scale;
       const metrics = calculateLayoutMetrics(placed.project.wall, placed.project.module, placed.project.modules);
@@ -283,10 +285,10 @@ function renderPlacedProjects(project: LedWallProject, ox: number, oy: number, s
               ? getRainbowModuleColor(module, placed.project.wall)
               : module.color
             : "#111827";
-          return `<rect x="${originX + module.x * scale}" y="${originY + module.y * scale}" width="${module.width * scale}" height="${module.height * scale}" fill="${fill}" opacity="${disabled ? 0.32 : 0.72}" stroke="#1e293b" stroke-width="0.5"/>`;
+          return `<rect x="${originX + module.x * local}" y="${originY + module.y * local}" width="${module.width * local}" height="${module.height * local}" fill="${fill}" opacity="${disabled ? 0.32 : 0.72}" stroke="#1e293b" stroke-width="0.5"/>`;
         })
         .join("");
-      const annotations = (placed.project.annotations ?? []).map((annotation) => renderAnnotation(annotation, originX, originY, scale)).join("");
+      const annotations = (placed.project.annotations ?? []).map((annotation) => renderAnnotation(annotation, originX, originY, local)).join("");
       return `<g>${moduleRects}<text x="${originX}" y="${originY - 8}" font-size="11" fill="#e0f2fe" font-family="Arial">${escapeXml(placed.name)}</text>${annotations}</g>`;
     })
     .join("");

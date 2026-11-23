@@ -8,6 +8,7 @@ import { normalizeRect, rectsIntersect, type Point, type Rect } from "@/lib/geom
 import { generatePortMapping } from "@/lib/mapping";
 import {
   alignmentTargets,
+  mainWallBox,
   placedScale,
   placedSize,
   resizePlaced,
@@ -35,11 +36,12 @@ export function WallCanvas() {
   const [cursorWorld, setCursorWorld] = useState<Point>({ x: 0, y: 0 });
   const [snapGuides, setSnapGuides] = useState<SnapGuides>({ xs: [], ys: [] });
   const objectDrag = useRef<{
-    kind: "annotation" | "image" | "placed" | "placed-resize";
+    kind: "annotation" | "image" | "placed" | "placed-resize" | "main" | "main-resize";
     id: string;
     originX: number;
     originY: number;
     corner?: ResizeCorner;
+    fromBody?: boolean;
     startWorld: Point;
     pushedHistory: boolean;
   } | null>(null);
@@ -62,15 +64,18 @@ export function WallCanvas() {
     selectedAnnotationId,
     selectedImageId,
     selectedPlacedId,
+    selectedMainWall,
     shapeKind,
     selectedColor,
     selectAnnotation,
     selectImage,
     selectPlaced,
+    selectMainWall,
     addAnnotation,
     updateAnnotation,
     updateImage,
     updatePlacedProject,
+    updateSheet,
     pushHistorySnapshot
   } = useEditorStore();
 
@@ -154,10 +159,16 @@ export function WallCanvas() {
 
     if (project.sheet.showGuides) drawPageGuides(ctx, pageFrames(project), view.zoom);
 
+    const mainBox = mainWallBox(project);
     ctx.save();
     ctx.translate(project.sheet.wallX, project.sheet.wallY);
-    paintWall(ctx, project, view.zoom, new Set(selectedModuleIds), activeRouteId, activePowerRouteId, selectedPowerCabinetId);
+    ctx.scale(mainBox.scale, mainBox.scale);
+    paintWall(ctx, project, view.zoom * mainBox.scale, new Set(selectedModuleIds), activeRouteId, activePowerRouteId, selectedPowerCabinetId);
     ctx.restore();
+    if (selectedMainWall && mainBox.width > 0 && mainBox.height > 0) {
+      strokeWorldRect(ctx, mainBox.x, mainBox.y, mainBox.width, mainBox.height, view.zoom);
+      drawResizeHandles(ctx, mainBox.x, mainBox.y, mainBox.width, mainBox.height, view.zoom);
+    }
 
     project.placedProjects.forEach((placed) => {
       const scale = placedScale(placed);
@@ -240,7 +251,43 @@ export function WallCanvas() {
   }
 
   function wallLocal(world: Point): Point {
-    return { x: world.x - project.sheet.wallX, y: world.y - project.sheet.wallY };
+    const scale = mainWallBox(project).scale;
+    return { x: (world.x - project.sheet.wallX) / scale, y: (world.y - project.sheet.wallY) / scale };
+  }
+
+  function hitTestMainHandle(world: Point) {
+    if (!selectedMainWall) return null;
+    const box = mainWallBox(project);
+    if (box.width <= 0 || box.height <= 0) return null;
+    const reach = Math.max(14 / view.zoom, 8);
+    const corners: Array<{ corner: ResizeCorner; x: number; y: number }> = [
+      { corner: "nw", x: box.x, y: box.y },
+      { corner: "ne", x: box.x + box.width, y: box.y },
+      { corner: "sw", x: box.x, y: box.y + box.height },
+      { corner: "se", x: box.x + box.width, y: box.y + box.height }
+    ];
+    return corners.find((corner) => Math.abs(world.x - corner.x) <= reach && Math.abs(world.y - corner.y) <= reach) ?? null;
+  }
+
+  function hitTestMainTitle(world: Point) {
+    const box = mainWallBox(project);
+    if (box.width <= 0 || box.height <= 0) return false;
+    const band = Math.max(28 / view.zoom, 18);
+    const titleWidth = Math.min(box.width, Math.max(220 / view.zoom, 80));
+    return world.x >= box.x && world.x <= box.x + titleWidth && world.y >= box.y - band && world.y <= box.y;
+  }
+
+  function hitTestMainBody(world: Point) {
+    const box = mainWallBox(project);
+    return world.x >= box.x && world.y >= box.y && world.x <= box.x + box.width && world.y <= box.y + box.height;
+  }
+
+  function mainAnchor(corner: ResizeCorner) {
+    const box = mainWallBox(project);
+    if (corner === "nw") return { x: box.x + box.width, y: box.y + box.height };
+    if (corner === "ne") return { x: box.x, y: box.y + box.height };
+    if (corner === "sw") return { x: box.x + box.width, y: box.y };
+    return { x: box.x, y: box.y };
   }
 
   function hitTest(world: Point) {
@@ -354,6 +401,45 @@ export function WallCanvas() {
         objectDrag.current = { kind: "placed", id: placed.id, originX: placed.x, originY: placed.y, startWorld: world, pushedHistory: false };
         return;
       }
+      const mainHandle = activeTool === "select" ? hitTestMainHandle(world) : null;
+      if (mainHandle) {
+        const anchor = mainAnchor(mainHandle.corner);
+        selectMainWall(true);
+        objectDrag.current = {
+          kind: "main-resize",
+          id: "main",
+          originX: anchor.x,
+          originY: anchor.y,
+          corner: mainHandle.corner,
+          startWorld: world,
+          pushedHistory: false
+        };
+        return;
+      }
+      if (activeTool === "select" && hitTestMainTitle(world)) {
+        selectMainWall(true);
+        objectDrag.current = {
+          kind: "main",
+          id: "main",
+          originX: project.sheet.wallX,
+          originY: project.sheet.wallY,
+          startWorld: world,
+          pushedHistory: false
+        };
+        return;
+      }
+      if (activeTool === "select" && selectedMainWall && hitTestMainBody(world)) {
+        objectDrag.current = {
+          kind: "main",
+          id: "main",
+          originX: project.sheet.wallX,
+          originY: project.sheet.wallY,
+          fromBody: true,
+          startWorld: world,
+          pushedHistory: false
+        };
+        return;
+      }
       if (activeTool === "select") {
         selectAnnotation(null);
         selectImage(null);
@@ -373,8 +459,9 @@ export function WallCanvas() {
     const point = getPoint(event);
     const hoverWorld = screenToWorld(point);
     setCursorWorld(hoverWorld);
-    const resizing = objectDrag.current?.kind === "placed-resize" ? objectDrag.current.corner : null;
-    const hoverHandle = !resizing && activeTool === "select" ? hitTestPlacedHandle(hoverWorld) : null;
+    const resizing =
+      objectDrag.current?.kind === "placed-resize" || objectDrag.current?.kind === "main-resize" ? objectDrag.current.corner : null;
+    const hoverHandle = !resizing && activeTool === "select" ? hitTestPlacedHandle(hoverWorld) ?? hitTestMainHandle(hoverWorld) : null;
     if (canvasRef.current) {
       const corner = resizing ?? hoverHandle?.corner;
       canvasRef.current.style.cursor = corner ? resizeCursor(corner) : "";
@@ -428,6 +515,29 @@ export function WallCanvas() {
             setSnapGuides(snapped.guides);
             updatePlacedProject(drag.id, { x: snapped.x, y: snapped.y }, false);
           }
+        } else if (drag.kind === "main-resize" && drag.corner) {
+          const resized = resizePlaced({
+            corner: drag.corner,
+            anchorX: drag.originX,
+            anchorY: drag.originY,
+            wallWidth: current.wall.width,
+            wallHeight: current.wall.height,
+            pointerX: world.x,
+            pointerY: world.y,
+            targets: alignmentTargets(current, "main"),
+            threshold: Math.max(8, 14 / view.zoom)
+          });
+          setSnapGuides(resized.guides);
+          updateSheet({ wallX: resized.x, wallY: resized.y, wallScale: resized.scale }, false);
+        } else if (drag.kind === "main") {
+          const box = mainWallBox(current);
+          const raw = {
+            x: drag.originX + (world.x - drag.startWorld.x),
+            y: drag.originY + (world.y - drag.startWorld.y)
+          };
+          const snapped = snapTranslation(raw.x, raw.y, box.width, box.height, alignmentTargets(current, "main"), Math.max(8, 14 / view.zoom));
+          setSnapGuides(snapped.guides);
+          updateSheet({ wallX: snapped.x, wallY: snapped.y }, false);
         } else {
           const next = {
             x: drag.originX + (world.x - drag.startWorld.x),
@@ -461,11 +571,19 @@ export function WallCanvas() {
     const world = screenToWorld(point);
 
     if (objectDrag.current) {
+      const drag = objectDrag.current;
       objectDrag.current = null;
       dragStart.current = null;
       lastPointer.current = null;
+      const dragged = hasDragged.current;
       hasDragged.current = false;
       setSnapGuides({ xs: [], ys: [] });
+      if (drag.kind === "main" && drag.fromBody && !dragged) {
+        const hit = hitTest(world);
+        selectMainWall(false);
+        if (hit) selectModule(hit.id, event.ctrlKey || event.metaKey);
+        else clearSelection();
+      }
       return;
     }
 
@@ -530,11 +648,12 @@ export function WallCanvas() {
       }
     } else if (activeTool === "select") {
       if (selectionRect && hasDragged.current) {
+        const scale = mainWallBox(project).scale;
         const localRect = {
-          x: selectionRect.x - project.sheet.wallX,
-          y: selectionRect.y - project.sheet.wallY,
-          width: selectionRect.width,
-          height: selectionRect.height
+          x: (selectionRect.x - project.sheet.wallX) / scale,
+          y: (selectionRect.y - project.sheet.wallY) / scale,
+          width: selectionRect.width / scale,
+          height: selectionRect.height / scale
         };
         const selected = project.modules
           .filter((module) => rectsIntersect(localRect, module))
@@ -587,7 +706,7 @@ export function WallCanvas() {
               ? "Drag to draw a line. Change the color and thickness in Annotations."
             : activeTool === "shape"
               ? "Drag to draw the selected shape."
-              : "Page borders show the PDF margin. Drag a project to move it, or a corner to resize. Edges snap into alignment."}
+              : "Click a project name to move it. Drag a corner to resize. Edges snap to the page margin."}
         </div>
       </div>
     </div>
@@ -673,7 +792,7 @@ function drawPageGuides(ctx: CanvasRenderingContext2D, frames: ReturnType<typeof
 }
 
 function drawResizeHandles(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, zoom: number) {
-  const size = Math.max(10 / zoom, 7);
+  const size = Math.max(14 / zoom, 8);
   const corners = [
     [x, y],
     [x + width, y],
@@ -780,11 +899,13 @@ function drawDimensionLines(
   zoom: number
 ) {
   if (!enabled) return;
-  const offset = Math.max(280 / zoom, 260);
+  const span = Math.max(Math.min(width, height), 1);
+  const offset = Math.min(Math.max(56 / zoom, 40), span * 0.08);
+  const fontSize = Math.min(Math.max(14 / zoom, 12), span * 0.035);
   ctx.strokeStyle = "#94a3b8";
   ctx.fillStyle = "#cbd5e1";
-  ctx.lineWidth = Math.max(2 / zoom, 2);
-  ctx.font = `${Math.max(40 / zoom, 36)}px ui-monospace, monospace`;
+  ctx.lineWidth = Math.min(Math.max(1.5 / zoom, 1), span * 0.004);
+  ctx.font = `${fontSize}px ui-monospace, monospace`;
   ctx.textAlign = "center";
   ctx.beginPath();
   ctx.moveTo(0, -offset);
@@ -792,9 +913,9 @@ function drawDimensionLines(
   ctx.moveTo(-offset, 0);
   ctx.lineTo(-offset, height);
   ctx.stroke();
-  ctx.fillText(`${width} ${unit}`, width / 2, -offset - 32 / zoom);
+  ctx.fillText(`${width} ${unit}`, width / 2, -offset - fontSize * 0.45);
   ctx.save();
-  ctx.translate(-offset - 42 / zoom, height / 2);
+  ctx.translate(-offset - fontSize * 0.7, height / 2);
   ctx.rotate(-Math.PI / 2);
   ctx.fillText(`${height} ${unit}`, 0, 0);
   ctx.restore();

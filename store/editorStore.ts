@@ -5,7 +5,7 @@ import { defaultTitleStyle, measureTextAnnotation } from "@/lib/annotations";
 import { calculateCabinetLayout } from "@/lib/calculations";
 import { buildLabel, findCabinetForModule, getModulesInCabinet, orderModulesForCabinet, parseLabelRange } from "@/lib/labeling";
 import { generatePortMapping } from "@/lib/mapping";
-import { fitPlacedInFrame, frameContaining, placedSize } from "@/lib/placement";
+import { fitPlacedInFrame, frameContaining, mainWallBox, placedSize } from "@/lib/placement";
 import { createSampleProject, parseProject, regenerateModuleGeometry, serializeProject } from "@/lib/project";
 import { effectiveSheet, normalizeSheet, pageFrames, pagesToCover } from "@/lib/sheet";
 import type {
@@ -13,6 +13,7 @@ import type {
   CabinetSequenceDirection,
   CanvasAnnotation,
   CanvasImage,
+  CanvasProjectDraft,
   DisplaySettings,
   LedModule,
   LedWallProject,
@@ -46,6 +47,7 @@ interface EditorState {
   selectedAnnotationId: string | null;
   selectedImageId: string | null;
   selectedPlacedId: string | null;
+  selectedMainWall: boolean;
   shapeKind: ShapeKind;
   selectedColor: string;
   view: ViewState;
@@ -77,18 +79,21 @@ interface EditorState {
   deleteAnnotation: (id: string) => void;
   deleteSelectedAnnotation: () => void;
   bringAnnotationToFront: (id: string) => void;
-  updateSheet: (settings: Partial<SheetSettings>) => void;
+  updateSheet: (settings: Partial<SheetSettings>, recordHistory?: boolean) => void;
   addPage: () => void;
   coverPages: () => void;
   addPlacedProject: (json: string) => void;
+  addCanvasProject: (draft: CanvasProjectDraft) => void;
   updatePlacedProject: (id: string, settings: Partial<Pick<PlacedProject, "name" | "x" | "y" | "scale">>, recordHistory?: boolean) => void;
   fitPlacedProject: (id: string) => void;
+  fitMainWall: () => void;
   deletePlacedProject: (id: string) => void;
   addImage: (image: Omit<CanvasImage, "id">) => void;
   updateImage: (id: string, settings: Partial<Pick<CanvasImage, "name" | "x" | "y" | "width" | "height">>, recordHistory?: boolean) => void;
   deleteImage: (id: string) => void;
   selectImage: (id: string | null) => void;
   selectPlaced: (id: string | null) => void;
+  selectMainWall: (selected: boolean) => void;
   pushHistorySnapshot: () => void;
   setView: (view: Partial<ViewState>) => void;
   selectModule: (id: string, append?: boolean) => void;
@@ -133,6 +138,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectedAnnotationId: null,
   selectedImageId: null,
   selectedPlacedId: null,
+  selectedMainWall: false,
   shapeKind: "rect",
   selectedColor: "#2563eb",
   view: {
@@ -338,11 +344,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setShapeKind: (shapeKind) => set({ shapeKind }),
 
-  selectAnnotation: (selectedAnnotationId) => set({ selectedAnnotationId, selectedImageId: null, selectedPlacedId: null }),
+  selectAnnotation: (selectedAnnotationId) =>
+    set({ selectedAnnotationId, selectedImageId: null, selectedPlacedId: null, selectedMainWall: false }),
 
-  selectImage: (selectedImageId) => set({ selectedImageId, selectedAnnotationId: null, selectedPlacedId: null, selectedModuleIds: [] }),
+  selectImage: (selectedImageId) =>
+    set({ selectedImageId, selectedAnnotationId: null, selectedPlacedId: null, selectedMainWall: false, selectedModuleIds: [] }),
 
-  selectPlaced: (selectedPlacedId) => set({ selectedPlacedId, selectedAnnotationId: null, selectedImageId: null, selectedModuleIds: [] }),
+  selectPlaced: (selectedPlacedId) =>
+    set({ selectedPlacedId, selectedAnnotationId: null, selectedImageId: null, selectedMainWall: false, selectedModuleIds: [] }),
+
+  selectMainWall: (selectedMainWall) =>
+    set({
+      selectedMainWall,
+      selectedPlacedId: selectedMainWall ? null : get().selectedPlacedId,
+      selectedAnnotationId: selectedMainWall ? null : get().selectedAnnotationId,
+      selectedImageId: selectedMainWall ? null : get().selectedImageId,
+      selectedModuleIds: selectedMainWall ? [] : get().selectedModuleIds
+    }),
 
   addAnnotation: (draft) => {
     const annotation = measureTextAnnotation({
@@ -398,12 +416,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       };
     }),
 
-  updateSheet: (settings) =>
-    setWithHistory(set, get, (project) => ({
+  updateSheet: (settings, recordHistory = true) => {
+    const apply = (project: LedWallProject) => ({
       ...project,
       sheet: normalizeSheet({ ...project.sheet, ...settings }),
       updatedAt: new Date().toISOString()
-    })),
+    });
+    if (recordHistory) setWithHistory(set, get, apply);
+    else set((state) => ({ project: apply(state.project) }));
+  },
 
   addPage: () =>
     setWithHistory(set, get, (project) => {
@@ -437,28 +458,40 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const placedProject: LedWallProject = { ...nested, placedProjects: [], images: [] };
     let placedId = "";
     setWithHistory(set, get, (project) => {
-      const fitted = effectiveSheet(project);
-      const pageCount = Math.max(fitted.pageCount, project.placedProjects.length + 2);
-      const frames = pageFrames({ ...project, sheet: { ...fitted, pageCount, lockOrientation: true } });
-      const index = Math.min(project.placedProjects.length + 1, frames.length - 1);
-      const fittedPlacement = fitPlacedInFrame(placedProject.wall.width, placedProject.wall.height, frames[index]);
-      placedId = `placed-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-      return {
-        ...project,
-        sheet: normalizeSheet({ ...fitted, pageCount: Math.max(pageCount, index + 1), showGuides: true, lockOrientation: true }),
-        placedProjects: [
-          ...project.placedProjects,
-          {
-            id: placedId,
-            name: placedProject.projectName || `Project ${project.placedProjects.length + 2}`,
-            ...fittedPlacement,
-            project: placedProject
-          }
-        ],
-        updatedAt: new Date().toISOString()
-      };
+      const placed = withPlacedProject(project, placedProject, placedProject.projectName || `Project ${project.placedProjects.length + 2}`);
+      placedId = placed.id;
+      return placed.project;
     });
-    set({ selectedPlacedId: placedId, selectedAnnotationId: null, selectedImageId: null, selectedModuleIds: [] });
+    set({ selectedPlacedId: placedId, selectedMainWall: false, selectedAnnotationId: null, selectedImageId: null, selectedModuleIds: [] });
+  },
+
+  addCanvasProject: (draft) => {
+    const base = createSampleProject();
+    const placedProject = regenerateModuleGeometry({
+      ...base,
+      projectName: draft.name.trim() || "New project",
+      wall: { ...base.wall, width: draft.wallWidth, height: draft.wallHeight, unit: draft.unit },
+      module: {
+        width: draft.moduleWidth,
+        height: draft.moduleHeight,
+        pixelWidth: draft.pixelWidth,
+        pixelHeight: draft.pixelHeight
+      },
+      cabinet: {
+        ...base.cabinet,
+        enabled: draft.cabinetWidth > 0 && draft.cabinetHeight > 0,
+        mode: "auto",
+        width: draft.cabinetWidth,
+        height: draft.cabinetHeight
+      }
+    });
+    let placedId = "";
+    setWithHistory(set, get, (project) => {
+      const placed = withPlacedProject(project, placedProject, placedProject.projectName);
+      placedId = placed.id;
+      return placed.project;
+    });
+    set({ selectedPlacedId: placedId, selectedMainWall: false, selectedAnnotationId: null, selectedImageId: null, selectedModuleIds: [] });
   },
 
   fitPlacedProject: (id) =>
@@ -472,6 +505,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           const frame = frameContaining(frames, placed.x + size.width / 2, placed.y + size.height / 2);
           return { ...placed, ...fitPlacedInFrame(placed.project.wall.width, placed.project.wall.height, frame) };
         }),
+        updatedAt: new Date().toISOString()
+      };
+    }),
+
+  fitMainWall: () =>
+    setWithHistory(set, get, (project) => {
+      const frames = pageFrames(project);
+      if (frames.length === 0) return project;
+      const box = mainWallBox(project);
+      const frame = frameContaining(frames, box.x + box.width / 2, box.y + box.height / 2);
+      const fitted = fitPlacedInFrame(project.wall.width, project.wall.height, frame);
+      return {
+        ...project,
+        sheet: normalizeSheet({ ...project.sheet, wallX: fitted.x, wallY: fitted.y, wallScale: fitted.scale }),
         updatedAt: new Date().toISOString()
       };
     }),
@@ -536,11 +583,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   selectModule: (id, append = false) =>
     set((state) => {
-      if (!append) return { selectedModuleIds: [id] };
+      if (!append) return { selectedModuleIds: [id], selectedMainWall: false };
       const selected = new Set(state.selectedModuleIds);
       if (selected.has(id)) selected.delete(id);
       else selected.add(id);
-      return { selectedModuleIds: Array.from(selected) };
+      return { selectedModuleIds: Array.from(selected), selectedMainWall: false };
     }),
 
   selectModules: (ids, append = false) =>
@@ -565,7 +612,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         .map((module) => module.id)
     })),
 
-  clearSelection: () => set({ selectedModuleIds: [] }),
+  clearSelection: () => set({ selectedModuleIds: [], selectedMainWall: false }),
 
   updateSelectedModules: (changes) =>
     setWithHistory(set, get, (project) => {
@@ -871,6 +918,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         selectedAnnotationId: null,
         selectedImageId: null,
         selectedPlacedId: null,
+        selectedMainWall: false,
         selectedModuleIds: []
       };
     }),
@@ -889,10 +937,37 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         selectedAnnotationId: null,
         selectedImageId: null,
         selectedPlacedId: null,
+        selectedMainWall: false,
         selectedModuleIds: []
       };
     })
 }));
+
+function withPlacedProject(project: LedWallProject, placedProject: LedWallProject, name: string) {
+  const fitted = effectiveSheet(project);
+  const pageCount = Math.max(fitted.pageCount, project.placedProjects.length + 2);
+  const frames = pageFrames({ ...project, sheet: { ...fitted, pageCount, lockOrientation: true } });
+  const index = Math.min(project.placedProjects.length + 1, frames.length - 1);
+  const fittedPlacement = fitPlacedInFrame(placedProject.wall.width, placedProject.wall.height, frames[index]);
+  const id = `placed-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  return {
+    id,
+    project: {
+      ...project,
+      sheet: normalizeSheet({ ...fitted, pageCount: Math.max(pageCount, index + 1), showGuides: true, lockOrientation: true }),
+      placedProjects: [
+        ...project.placedProjects,
+        {
+          id,
+          name,
+          ...fittedPlacement,
+          project: { ...placedProject, placedProjects: [], images: [] }
+        }
+      ],
+      updatedAt: new Date().toISOString()
+    }
+  };
+}
 
 function setWithHistory(
   set: (partial: Partial<EditorState> | ((state: EditorState) => Partial<EditorState>)) => void,

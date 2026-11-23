@@ -87,7 +87,14 @@ export function exportProjectPdf(project: LedWallProject, options: PdfExportOpti
     doc.rect(0, 0, pageWidth, pageHeight, null);
     doc.clip();
     doc.discardPath();
-    drawDiagram(doc, project, originX + sheet.wallX * pdfScale, originY + sheet.wallY * pdfScale, pdfScale, diagramOptions);
+    drawDiagram(
+      doc,
+      project,
+      originX + sheet.wallX * pdfScale,
+      originY + sheet.wallY * pdfScale,
+      pdfScale * placedScale({ scale: sheet.wallScale }),
+      diagramOptions
+    );
     framed.placedProjects.forEach((placed) => {
       const localScale = pdfScale * placedScale(placed);
       const placedX = originX + placed.x * pdfScale;

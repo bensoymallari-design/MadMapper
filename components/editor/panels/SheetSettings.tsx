@@ -1,7 +1,8 @@
 "use client";
 
 import { ImagePlus, Plus, Trash2 } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { NewCanvasProjectDialog } from "@/components/editor/NewCanvasProjectDialog";
 import { Button } from "@/components/ui/Button";
 import { FieldGroup, NumberInput, SelectInput } from "@/components/ui/Field";
 import { prepareImageFile } from "@/lib/images";
@@ -12,22 +13,26 @@ import type { SheetSettings } from "@/types/project";
 export function SheetSettingsPanel() {
   const projectRef = useRef<HTMLInputElement | null>(null);
   const imageRef = useRef<HTMLInputElement | null>(null);
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
   const {
     project,
     selectedImageId,
     selectedPlacedId,
+    selectedMainWall,
     updateSheet,
     addPage,
     coverPages,
     addPlacedProject,
     updatePlacedProject,
     fitPlacedProject,
+    fitMainWall,
     deletePlacedProject,
     addImage,
     updateImage,
     deleteImage,
     selectImage,
-    selectPlaced
+    selectPlaced,
+    selectMainWall
   } = useEditorStore();
   const sheet = project.sheet;
   const fitted = effectiveSheet(project);
@@ -148,12 +153,43 @@ export function SheetSettingsPanel() {
         {frames.length} page{frames.length === 1 ? "" : "s"} on the canvas. The safe area of page 1 starts at 0, 0.
       </div>
 
+      <div className={`rounded-lg border p-2 ${selectedMainWall ? "border-sky-400/70 bg-sky-950/40" : "border-slate-800 bg-slate-950/50"}`}>
+        <button type="button" className="mb-2 block w-full text-left text-xs text-slate-200" onClick={() => selectMainWall(true)}>
+          {project.projectName || "This project"}
+        </button>
+        <p className="mb-2 text-xs text-slate-500">Click the name on the canvas, then drag to move it. Drag a corner to resize. Edges snap to the margin.</p>
+        <div className="grid grid-cols-2 gap-2">
+          <FieldGroup label="X">
+            <NumberInput allowNegative value={sheet.wallX} onValueChange={(wallX) => updateSheet({ wallX })} />
+          </FieldGroup>
+          <FieldGroup label="Y">
+            <NumberInput allowNegative value={sheet.wallY} onValueChange={(wallY) => updateSheet({ wallY })} />
+          </FieldGroup>
+          <FieldGroup label="Scale %">
+            <NumberInput
+              min={5}
+              value={Math.round((sheet.wallScale || 1) * 100)}
+              onValueChange={(percent) => updateSheet({ wallScale: Math.min(2000, Math.max(5, percent)) / 100 })}
+            />
+          </FieldGroup>
+        </div>
+        <Button className="mt-2" variant="secondary" size="sm" onClick={fitMainWall}>
+          Fit & align
+        </Button>
+      </div>
+
       <div className="border-t border-slate-800 pt-3">
         <div className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-300">Other projects</div>
-        <Button variant="secondary" size="sm" onClick={() => projectRef.current?.click()}>
-          <Plus className="h-4 w-4" />
-          Add project JSON
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" size="sm" onClick={() => setNewProjectOpen(true)}>
+            <Plus className="h-4 w-4" />
+            New project
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => projectRef.current?.click()}>
+            <Plus className="h-4 w-4" />
+            Add project JSON
+          </Button>
+        </div>
         <div className="mt-2 space-y-2">
           {project.placedProjects.length === 0 ? (
             <div className="text-xs text-slate-500">The canvas has only this project.</div>
@@ -238,6 +274,7 @@ export function SheetSettingsPanel() {
         </div>
       </div>
 
+      {newProjectOpen ? <NewCanvasProjectDialog open onClose={() => setNewProjectOpen(false)} /> : null}
       <input
         ref={projectRef}
         type="file"

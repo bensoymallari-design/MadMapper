@@ -281,11 +281,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   updateDisplay: (settings) =>
     set((state) => ({
-      project: {
-        ...state.project,
-        display: { ...state.project.display, ...settings },
+      project: patchContent(state, (project) => ({
+        ...project,
+        display: { ...project.display, ...settings },
         updatedAt: new Date().toISOString()
-      }
+      }))
     })),
 
   setActiveTool: (activeTool) => set({ activeTool }),
@@ -345,7 +345,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setShapeKind: (shapeKind) => set({ shapeKind }),
 
   selectAnnotation: (selectedAnnotationId) =>
-    set({ selectedAnnotationId, selectedImageId: null, selectedPlacedId: null, selectedMainWall: false }),
+    set({ selectedAnnotationId, selectedImageId: null, selectedMainWall: false }),
 
   selectImage: (selectedImageId) =>
     set({ selectedImageId, selectedAnnotationId: null, selectedPlacedId: null, selectedMainWall: false, selectedModuleIds: [] }),
@@ -386,8 +386,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }),
       updatedAt: new Date().toISOString()
     });
-    if (recordHistory) setWithHistory(set, get, apply);
-    else set((state) => ({ project: apply(state.project) }));
+    if (recordHistory) setWithHistory(set, get, apply, "content");
+    else set((state) => ({ project: patchContent(state, apply) }));
   },
 
   deleteAnnotation: (id) => {
@@ -422,7 +422,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       sheet: normalizeSheet({ ...project.sheet, ...settings }),
       updatedAt: new Date().toISOString()
     });
-    if (recordHistory) setWithHistory(set, get, apply);
+    if (recordHistory) setWithHistory(set, get, apply, "root");
     else set((state) => ({ project: apply(state.project) }));
   },
 
@@ -434,7 +434,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         sheet: normalizeSheet({ ...fitted, pageCount: fitted.pageCount + 1, showGuides: true, lockOrientation: true }),
         updatedAt: new Date().toISOString()
       };
-    }),
+    }, "root"),
 
   coverPages: () =>
     setWithHistory(set, get, (project) => {
@@ -451,7 +451,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         }),
         updatedAt: new Date().toISOString()
       };
-    }),
+    }, "root"),
 
   addPlacedProject: (json) => {
     const nested = parseProject(json);
@@ -461,7 +461,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const placed = withPlacedProject(project, placedProject, placedProject.projectName || `Project ${project.placedProjects.length + 2}`);
       placedId = placed.id;
       return placed.project;
-    });
+    }, "root");
     set({ selectedPlacedId: placedId, selectedMainWall: false, selectedAnnotationId: null, selectedImageId: null, selectedModuleIds: [] });
   },
 
@@ -490,7 +490,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const placed = withPlacedProject(project, placedProject, placedProject.projectName);
       placedId = placed.id;
       return placed.project;
-    });
+    }, "root");
     set({ selectedPlacedId: placedId, selectedMainWall: false, selectedAnnotationId: null, selectedImageId: null, selectedModuleIds: [] });
   },
 
@@ -507,7 +507,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         }),
         updatedAt: new Date().toISOString()
       };
-    }),
+    }, "root"),
 
   fitMainWall: () =>
     setWithHistory(set, get, (project) => {
@@ -521,7 +521,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         sheet: normalizeSheet({ ...project.sheet, wallX: fitted.x, wallY: fitted.y, wallScale: fitted.scale }),
         updatedAt: new Date().toISOString()
       };
-    }),
+    }, "root"),
 
   updatePlacedProject: (id, settings, recordHistory = true) => {
     const apply = (project: LedWallProject) => ({
@@ -529,7 +529,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       placedProjects: project.placedProjects.map((placed) => (placed.id === id ? { ...placed, ...settings } : placed)),
       updatedAt: new Date().toISOString()
     });
-    if (recordHistory) setWithHistory(set, get, apply);
+    if (recordHistory) setWithHistory(set, get, apply, "root");
     else set((state) => ({ project: apply(state.project) }));
   },
 
@@ -538,7 +538,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ...project,
       placedProjects: project.placedProjects.filter((placed) => placed.id !== id),
       updatedAt: new Date().toISOString()
-    }));
+    }), "root");
     if (get().selectedPlacedId === id) set({ selectedPlacedId: null });
   },
 
@@ -551,7 +551,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ...project,
       images: [...project.images, image],
       updatedAt: new Date().toISOString()
-    }));
+    }), "root");
     set({ selectedImageId: image.id, selectedAnnotationId: null, selectedPlacedId: null, selectedModuleIds: [] });
   },
 
@@ -561,7 +561,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       images: project.images.map((image) => (image.id === id ? { ...image, ...settings } : image)),
       updatedAt: new Date().toISOString()
     });
-    if (recordHistory) setWithHistory(set, get, apply);
+    if (recordHistory) setWithHistory(set, get, apply, "root");
     else set((state) => ({ project: apply(state.project) }));
   },
 
@@ -570,7 +570,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ...project,
       images: project.images.filter((image) => image.id !== id),
       updatedAt: new Date().toISOString()
-    }));
+    }), "root");
     if (get().selectedImageId === id) set({ selectedImageId: null });
   },
 
@@ -597,17 +597,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   selectAll: () =>
     set((state) => ({
-      selectedModuleIds: state.project.modules.map((module) => module.id)
+      selectedModuleIds: editedProject(state).modules.map((module) => module.id)
     })),
 
   selectRow: (row) =>
     set((state) => ({
-      selectedModuleIds: state.project.modules.filter((module) => module.row === row).map((module) => module.id)
+      selectedModuleIds: editedProject(state).modules.filter((module) => module.row === row).map((module) => module.id)
     })),
 
   selectColumn: (column) =>
     set((state) => ({
-      selectedModuleIds: state.project.modules
+      selectedModuleIds: editedProject(state).modules
         .filter((module) => module.column === column)
         .map((module) => module.id)
     })),
@@ -656,14 +656,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   selectCurrentCabinetModules: () =>
     set((state) => {
-      const cabinets = calculateCabinetLayout(state.project.wall, state.project.module, state.project.cabinet);
+      const project = editedProject(state);
+      const cabinets = calculateCabinetLayout(project.wall, project.module, project.cabinet);
       const selected = new Set(state.selectedModuleIds);
-      const firstSelected = state.project.modules.find((module) => selected.has(module.id));
+      const firstSelected = project.modules.find((module) => selected.has(module.id));
       const cabinet = findCabinetForModule(cabinets, firstSelected);
       if (!cabinet) return state;
 
       return {
-        selectedModuleIds: getModulesInCabinet(cabinet, state.project.modules).map((module) => module.id)
+        selectedModuleIds: getModulesInCabinet(cabinet, project.modules).map((module) => module.id)
       };
     }),
 
@@ -715,7 +716,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   startReceivingCardRoute: () => {
     const state = get();
-    const currentRouting = state.project.routing ?? getDefaultRouting();
+    const currentRouting = editedProject(state).routing ?? getDefaultRouting();
     const nextIndex = currentRouting.routes.length + 1;
     const routeId = `route-${Date.now()}`;
     setWithHistory(set, get, (project) => ({
@@ -782,7 +783,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   startPowerLoopRoute: () => {
     const state = get();
-    const currentPower = state.project.power ?? getDefaultPower();
+    const currentPower = editedProject(state).power ?? getDefaultPower();
     const nextIndex = currentPower.routes.length + 1;
     const routeId = `power-route-${Date.now()}`;
     setWithHistory(set, get, (project) => ({
@@ -972,14 +973,53 @@ function withPlacedProject(project: LedWallProject, placedProject: LedWallProjec
 function setWithHistory(
   set: (partial: Partial<EditorState> | ((state: EditorState) => Partial<EditorState>)) => void,
   get: () => EditorState,
-  updater: (project: LedWallProject) => LedWallProject
+  updater: (project: LedWallProject) => LedWallProject,
+  target: "root" | "content" = "content"
 ) {
-  const current = get().project;
+  const state = get();
+  const root = state.project;
+  const placedId = target === "content" ? state.selectedPlacedId : null;
+  const current = placedId ? editedProject(state) : root;
+  const nextContent = updater(cloneProject(current));
+  const next = placedId && current !== root ? writeContent(root, placedId, nextContent) : nextContent;
   set({
-    project: updater(cloneProject(current)),
-    past: [...get().past, cloneProject(current)].slice(-HISTORY_LIMIT),
+    project: next,
+    past: [...state.past, cloneProject(root)].slice(-HISTORY_LIMIT),
     future: []
   });
+}
+
+export function useEditedProject() {
+  return useEditorStore((state) => editedProject(state));
+}
+
+function editedProject(state: Pick<EditorState, "project" | "selectedPlacedId">) {
+  const placed = state.selectedPlacedId
+    ? state.project.placedProjects.find((item) => item.id === state.selectedPlacedId)
+    : null;
+  return placed?.project ?? state.project;
+}
+
+function writeContent(root: LedWallProject, placedId: string, next: LedWallProject): LedWallProject {
+  return {
+    ...root,
+    placedProjects: root.placedProjects.map((placed) =>
+      placed.id === placedId
+        ? {
+            ...placed,
+            name: next.projectName?.trim() || placed.name,
+            project: { ...next, placedProjects: [], images: next.images ?? [] }
+          }
+        : placed
+    ),
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function patchContent(state: EditorState, updater: (project: LedWallProject) => LedWallProject) {
+  const current = editedProject(state);
+  const next = updater(current);
+  return state.selectedPlacedId && current !== state.project ? writeContent(state.project, state.selectedPlacedId, next) : next;
 }
 
 function cloneProject(project: LedWallProject): LedWallProject {

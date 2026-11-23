@@ -3,18 +3,22 @@
 import { AlertTriangle } from "lucide-react";
 import { annotationFonts } from "@/lib/annotations";
 import { calculateLayoutMetrics, validateDimensions } from "@/lib/calculations";
-import { useEditorStore } from "@/store/editorStore";
+import { useEditedProject, useEditorStore } from "@/store/editorStore";
 import { FieldGroup, NumberInput, SelectInput, TextInput } from "@/components/ui/Field";
 
 export function WallSettingsPanel() {
-  const { project, setProjectName, updateTitleStyle, updateWall, updateModuleSettings, updateCabinet } = useEditorStore();
+  const { setProjectName, updateTitleStyle, updateWall, updateModuleSettings, updateCabinet, selectedPlacedId } = useEditorStore();
+  const project = useEditedProject();
   const title = project.titleStyle;
   const metrics = calculateLayoutMetrics(project.wall, project.module, project.modules);
   const warnings = validateDimensions(project.wall, project.module);
 
   return (
     <section className="space-y-4">
-      <PanelTitle title="Project" />
+      <PanelTitle title={selectedPlacedId ? "Editing this wall" : "Project"} />
+      {selectedPlacedId ? (
+        <p className="text-xs text-sky-200">Changes here apply to the selected wall. Click the main wall to edit that one again.</p>
+      ) : null}
       <FieldGroup label="Project name">
         <TextInput value={project.projectName} onChange={(event) => setProjectName(event.target.value)} />
       </FieldGroup>

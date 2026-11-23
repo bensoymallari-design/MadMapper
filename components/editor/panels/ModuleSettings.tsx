@@ -4,14 +4,13 @@ import { Palette } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { FieldGroup, NumberInput, SelectInput, TextInput } from "@/components/ui/Field";
-import { useEditorStore } from "@/store/editorStore";
+import { useEditedProject, useEditorStore } from "@/store/editorStore";
 import type { CabinetSequenceDirection, ModuleStatus } from "@/types/project";
 
 const statuses: ModuleStatus[] = ["installed", "missing", "damaged", "spare", "unused"];
 
 export function ModuleSettingsPanel() {
   const {
-    project,
     selectedModuleIds,
     selectedColor,
     setSelectedColor,
@@ -22,6 +21,7 @@ export function ModuleSettingsPanel() {
     selectAll,
     clearSelection
   } = useEditorStore();
+  const project = useEditedProject();
   const [labelPrefix, setLabelPrefix] = useState("JH");
   const [labelStart, setLabelStart] = useState(1);
   const [labelPad, setLabelPad] = useState(1);

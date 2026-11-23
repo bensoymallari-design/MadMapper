@@ -1,10 +1,11 @@
 "use client";
 
 import { calculateLayoutMetrics } from "@/lib/calculations";
-import { useEditorStore } from "@/store/editorStore";
+import { useEditedProject, useEditorStore } from "@/store/editorStore";
 
 export function StatusBar() {
-  const { project, selectedModuleIds, view } = useEditorStore();
+  const { selectedModuleIds, view } = useEditorStore();
+  const project = useEditedProject();
   const metrics = calculateLayoutMetrics(project.wall, project.module, project.modules);
 
   return (

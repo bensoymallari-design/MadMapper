@@ -3,7 +3,7 @@
 import { annotationFonts } from "@/lib/annotations";
 import { Button } from "@/components/ui/Button";
 import { FieldGroup, NumberInput, SelectInput, TextInput } from "@/components/ui/Field";
-import { useEditorStore } from "@/store/editorStore";
+import { useEditedProject, useEditorStore } from "@/store/editorStore";
 import type { ShapeKind } from "@/types/project";
 
 const shapeOptions: { id: ShapeKind; label: string }[] = [
@@ -14,7 +14,6 @@ const shapeOptions: { id: ShapeKind; label: string }[] = [
 
 export function AnnotationSettings() {
   const {
-    project,
     selectedAnnotationId,
     shapeKind,
     setShapeKind,
@@ -24,6 +23,7 @@ export function AnnotationSettings() {
     deleteAnnotation,
     bringAnnotationToFront
   } = useEditorStore();
+  const project = useEditedProject();
   const annotations = project.annotations ?? [];
   const selected = annotations.find((annotation) => annotation.id === selectedAnnotationId) ?? null;
 

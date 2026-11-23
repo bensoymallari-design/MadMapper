@@ -1,9 +1,10 @@
 "use client";
 
-import { useEditorStore } from "@/store/editorStore";
+import { useEditedProject, useEditorStore } from "@/store/editorStore";
 
 export function ColorLegend() {
-  const { project, updatePortColor, updateDisplay } = useEditorStore();
+  const { updatePortColor, updateDisplay } = useEditorStore();
+  const project = useEditedProject();
 
   return (
     <section className="rounded-xl border border-slate-700 bg-slate-950/70 p-3">

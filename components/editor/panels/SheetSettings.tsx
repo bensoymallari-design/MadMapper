@@ -18,7 +18,6 @@ export function SheetSettingsPanel() {
     project,
     selectedImageId,
     selectedPlacedId,
-    selectedMainWall,
     updateSheet,
     addPage,
     coverPages,
@@ -153,11 +152,11 @@ export function SheetSettingsPanel() {
         {frames.length} page{frames.length === 1 ? "" : "s"} on the canvas. The safe area of page 1 starts at 0, 0.
       </div>
 
-      <div className={`rounded-lg border p-2 ${selectedMainWall ? "border-sky-400/70 bg-sky-950/40" : "border-slate-800 bg-slate-950/50"}`}>
+      <div className={`rounded-lg border p-2 ${!selectedPlacedId ? "border-sky-400/70 bg-sky-950/40" : "border-slate-800 bg-slate-950/50"}`}>
         <button type="button" className="mb-2 block w-full text-left text-xs text-slate-200" onClick={() => selectMainWall(true)}>
           {project.projectName || "This project"}
         </button>
-        <p className="mb-2 text-xs text-slate-500">Click the name on the canvas, then drag to move it. Drag a corner to resize. Edges snap to the margin.</p>
+        <p className="mb-2 text-xs text-slate-500">Click this wall to edit its modules. Drag the name to move it, or a corner to resize.</p>
         <div className="grid grid-cols-2 gap-2">
           <FieldGroup label="X">
             <NumberInput allowNegative value={sheet.wallX} onValueChange={(wallX) => updateSheet({ wallX })} />
@@ -202,6 +201,7 @@ export function SheetSettingsPanel() {
                 <button type="button" className="mb-2 block w-full text-left text-xs text-slate-200" onClick={() => selectPlaced(placed.id)}>
                   {placed.name}
                 </button>
+                <p className="mb-2 text-xs text-slate-500">Click the wall to edit its modules and mapping. Drag it onto another page, or drag a corner to resize.</p>
                 <div className="grid grid-cols-2 gap-2">
                   <FieldGroup label="X">
                     <NumberInput allowNegative value={placed.x} onValueChange={(x) => updatePlacedProject(placed.id, { x })} />

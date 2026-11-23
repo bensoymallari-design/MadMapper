@@ -55,6 +55,8 @@ export interface SheetSettings {
   lockOrientation: boolean;
   wallX: number;
   wallY: number;
+  /** Visual size of the main wall on the sheet. 1 keeps its real millimeter size. */
+  wallScale: number;
 }
 
 export interface PlacedProject {
@@ -91,6 +93,19 @@ export interface CanvasAnnotation {
   fill: string;
   fillOpacity: number;
   strokeWidth: number;
+}
+
+export interface CanvasProjectDraft {
+  name: string;
+  unit: Unit;
+  wallWidth: number;
+  wallHeight: number;
+  moduleWidth: number;
+  moduleHeight: number;
+  pixelWidth: number;
+  pixelHeight: number;
+  cabinetWidth: number;
+  cabinetHeight: number;
 }
 
 export interface WallSettings {

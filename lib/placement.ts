@@ -9,6 +9,17 @@ export function placedScale(placed: { scale?: number }) {
   return Math.min(20, Math.max(0.05, scale));
 }
 
+export function mainWallBox(project: LedWallProject) {
+  const scale = placedScale({ scale: project.sheet.wallScale });
+  return {
+    x: project.sheet.wallX,
+    y: project.sheet.wallY,
+    width: Math.max(project.wall.width, 0) * scale,
+    height: Math.max(project.wall.height, 0) * scale,
+    scale
+  };
+}
+
 export function placedSize(placed: PlacedProject) {
   const scale = placedScale(placed);
   return {
@@ -48,8 +59,11 @@ export interface AlignmentTargets {
 export function alignmentTargets(project: LedWallProject, ignoreId?: string): AlignmentTargets {
   const xs: number[] = [];
   const ys: number[] = [];
-  xs.push(project.sheet.wallX, project.sheet.wallX + project.wall.width / 2, project.sheet.wallX + project.wall.width);
-  ys.push(project.sheet.wallY, project.sheet.wallY + project.wall.height / 2, project.sheet.wallY + project.wall.height);
+  if (ignoreId !== "main") {
+    const main = mainWallBox(project);
+    xs.push(main.x, main.x + main.width / 2, main.x + main.width);
+    ys.push(main.y, main.y + main.height / 2, main.y + main.height);
+  }
   for (const frame of pageFrames(project)) {
     const origin = contentOrigin(frame);
     const right = origin.x + Math.max(frame.width - frame.margin * 2, 0);

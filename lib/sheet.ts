@@ -22,7 +22,8 @@ export function defaultSheet(): SheetSettings {
     showGuides: true,
     lockOrientation: false,
     wallX: 0,
-    wallY: 0
+    wallY: 0,
+    wallScale: 1
   };
 }
 
@@ -43,7 +44,8 @@ export function normalizeSheet(value?: Partial<SheetSettings> | null): SheetSett
     showGuides: sheet.showGuides !== false,
     lockOrientation: sheet.lockOrientation === true,
     wallX: Number.isFinite(Number(sheet.wallX)) ? Number(sheet.wallX) : 0,
-    wallY: Number.isFinite(Number(sheet.wallY)) ? Number(sheet.wallY) : 0
+    wallY: Number.isFinite(Number(sheet.wallY)) ? Number(sheet.wallY) : 0,
+    wallScale: positiveScale(sheet.wallScale)
   };
 }
 
@@ -149,7 +151,12 @@ export interface Bounds {
 export function contentBounds(project: LedWallProject): Bounds {
   const sheet = normalizeSheet(project.sheet);
   const boxes = [
-    { x: sheet.wallX, y: sheet.wallY, width: Math.max(project.wall.width, 0), height: Math.max(project.wall.height, 0) }
+    {
+      x: sheet.wallX,
+      y: sheet.wallY,
+      width: Math.max(project.wall.width, 0) * sheet.wallScale,
+      height: Math.max(project.wall.height, 0) * sheet.wallScale
+    }
   ];
   for (const placed of project.placedProjects ?? []) {
     const scale = Number(placed.scale);
@@ -208,6 +215,12 @@ function boundsOf(boxes: Array<{ x: number; y: number; width: number; height: nu
     maxX: Math.max(...boxes.map((box) => box.x + Math.max(box.width, 0))),
     maxY: Math.max(...boxes.map((box) => box.y + Math.max(box.height, 0)))
   };
+}
+
+function positiveScale(value: unknown) {
+  const scale = Number(value);
+  if (!Number.isFinite(scale) || scale <= 0) return 1;
+  return Math.min(20, Math.max(0.05, scale));
 }
 
 function clamp(value: number, min: number, max: number) {

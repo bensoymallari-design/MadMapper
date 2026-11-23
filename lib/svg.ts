@@ -19,14 +19,16 @@ export function generateProjectSvg(project: LedWallProject) {
   const header = Math.max(110, statsY + 20);
   const minX = Math.min(0, bounds.minX);
   const minY = Math.min(0, bounds.minY);
-  const maxX = Math.max(project.wall.width, bounds.maxX, 1);
-  const maxY = Math.max(project.wall.height, bounds.maxY, 1);
+  const wallScale = Number(project.sheet.wallScale);
+  const safeWallScale = Number.isFinite(wallScale) && wallScale > 0 ? wallScale : 1;
+  const maxX = Math.max(project.sheet.wallX + Math.max(project.wall.width, 0) * safeWallScale, bounds.maxX, 1);
+  const maxY = Math.max(project.sheet.wallY + Math.max(project.wall.height, 0) * safeWallScale, bounds.maxY, 1);
   const width = (maxX - minX) * scale + pad * 2;
   const height = header + (maxY - minY) * scale + pad;
   const ox = pad - minX * scale;
   const oy = header - minY * scale;
   const margin = 0;
-  const wallShift = `translate(${ox + project.sheet.wallX * scale} ${oy + project.sheet.wallY * scale})`;
+  const wallShift = `translate(${ox + project.sheet.wallX * scale} ${oy + project.sheet.wallY * scale}) scale(${safeWallScale})`;
   const mapped = generatePortMapping(
     project.modules,
     metrics.rows,
